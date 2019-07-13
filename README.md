@@ -2,7 +2,20 @@
 
 Network visualizer.
 
-Features:
+## Dependencies
+
+- Python 3 for:
+    * building graphs
+    * bundling standalone HTML files
+    * running a simple web server
+
+- Running `chrome --allow-file-access-from-files` or a different browser with a
+  similar ability to suspend CORS rules for files should allow you to open
+  `index.html` and visualize the provided `example-graph.json` file (or a graph
+  `.json` file of your choice, using `?t=...` at the end of your URL) without
+  needing to run Python.
+
+## Features:
 
 - Build a network from a `.tsv` tab-separated-value file that lists initiated
   and received interactions.
@@ -18,3 +31,5 @@ Features:
 - Ability to sort & filter/find nodes in a list.
 - Random-search "optimization" of force-directed layouts.
     * TODO: evolutionary approach or at least local refinement.
+
+## TODO
