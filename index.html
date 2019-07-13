@@ -1,0 +1,2212 @@
+<!doctype html>
+<!-- From: https://bl.ocks.org/heybignick/3faf257bbbbc7743bb72310d03b86ee8 -->
+<html>
+  <head>
+    <title>
+      dewlight graph visualizer
+    </title>
+    <meta charset="utf-8">
+    <style>
+
+body {
+  font-size: 14pt;
+  line-height: 20pt;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: 20vh 80vh;
+  grid-gap: 0pt;
+  margin: 0pt;
+  padding: 0pt;
+}
+
+h1 {
+  font-size: larger;
+  font-weight: bold;
+  margin-bottom: 4pt;
+}
+
+#graphs {
+  height: calc(80vh - 12pt);
+  width: calc(66vw - 12pt);
+  border: 1.5pt solid black;
+  border-radius: 4pt;
+  box-sizing: border-box;
+  margin: 6pt;
+  overflow: scroll;
+}
+
+.graph {
+  width: 100%;
+  height: 100%;
+  display: none; /* Hide all graphs */
+}
+
+#force_directed {
+  width: 200%;
+  height: 200%;
+  display: block; /* Show force-directed to start (code depends on this!) */
+  /* TODO: Can it not? */
+}
+
+#controls {
+  text-align: center;
+  box-sizing: border-box;
+  margin: 0pt;
+  padding: 6pt;
+  max-height: 20vh;
+  overflow: scroll;
+}
+
+.graph_controls {
+  margin: 0pt;
+  padding: 0pt;
+  display: none;
+}
+
+.graph_label {
+  margin: 0pt;
+}
+
+#fd_controls {
+  display: block; /* show at start */
+}
+
+#legend {
+  box-sizing: border-box;
+  margin: 0pt;
+  max-height: 20vh;
+  padding: 6pt;
+  overflow: scroll;
+}
+
+#legend_entries {
+  column-count: 2;
+}
+
+.swatch {
+  display: inline-block;
+  margin-right: 4pt;
+  width: 12pt;
+  height: 12pt;
+}
+
+#sidebar {
+  max-height: 80vh;
+  box-sizing: border-box;
+  margin: 0pt;
+  padding: 0pt;
+  overflow: hidden;
+}
+
+#sidebar-controls {
+  height: 20%;
+  box-sizing: border-box;
+  margin: 0pt;
+  padding: 6pt;
+}
+
+#sidebar-controls > h1:first-child {
+  margin-top: 0pt;
+}
+
+#sidebar-controls > p {
+  margin: 6pt 0pt 6pt 0pt;
+}
+
+
+#charlist {
+  height: 80%;
+  overflow: scroll;
+  box-sizing: border-box;
+  margin: 0pt;
+}
+
+a:link,a:visited {
+  text-decoration: none;
+  color: #005599;
+}
+
+.links line, .links path {
+  fill: transparent;
+  stroke: #999;
+  stroke-opacity: 0.6;
+}
+
+.nodes circle {
+  r: 11;
+  stroke: #fff;
+  stroke-width: 1.5px;
+}
+
+.selected circle {
+  stroke: #000;
+}
+
+text.symbol {
+  text-anchor: middle;
+  alignment-baseline: central;
+  font-size: 19px;
+  cursor: crosshair;
+  fill: black;
+  stroke: white;
+  stroke-width: 1.5pt;
+  paint-order: stroke fill;
+}
+
+.backing {
+  fill: white;
+  stroke: gray;
+  rx: 4px;
+  ry: 4px;
+}
+
+.edge {
+  cursor: crosshair;
+}
+
+.directional-edge {
+  cursor: crosshair;
+}
+
+rect.bar {
+  cursor: crosshair;
+}
+
+rect.bar.selected {
+  stroke: #000;
+  stroke-width: 2pt;
+}
+
+.character.selected a {
+  text-decoration: underline;
+  font-weight: bold;
+}
+
+.character {
+  display: grid;
+  grid-template-columns: 1fr 8fr 2fr 2fr 2fr;
+  border-bottom: 1pt dotted black;
+}
+
+.character a:first-child {
+  display: block;
+  padding-left: 12pt;
+  text-indent: -12pt;
+}
+
+.character .stats {
+  justify-self: start;
+  align-self: center;
+  font-size: smaller;
+}
+
+text {
+  font-family: serif;
+  font-size: 14pt;
+}
+
+    </style>
+  </head>
+  <body>
+    <div id="controls">
+      show <select id="graph_select" onchange="select_graph(this.value)">
+        <option selected="t" value="force">relationships</option>
+        <option value="histogram-i">histogram (initiated)</option>
+        <option value="histogram-r">histogram (received)</option>
+        <option value="histogram-c">histogram (both)</option>
+        <option value="ego">ego network</option>
+        <option value="pair">single relationship</option>
+      </select>
+      <br/>
+
+      <div id="fd_controls" class="graph_controls">
+        <h1 class="graph_label">All Relationships</h1>
+
+        mark <select id="mark_select" onchange="set_symbols(this.value)">
+          <option selected="t" value="important">important characters</option>
+          <option value="all">all characters</option>
+          <option value="none">none</option>
+        </select>
+        |
+        hide
+        <input
+         type="checkbox"
+         onclick="toggle_link_visibility('minor', !this.checked)">
+        minor edges
+        <input
+         type="checkbox"
+         onclick="toggle_link_visibility('passive', !this.checked)">
+        passive edges
+        |
+        <input
+         type="checkbox"
+         onclick="toggle_node_filter(this.checked)">
+        filter characters
+        <br/>
+
+        <input
+         type="button"
+         value="shuffle"
+         onclick="shuffle()">
+        |
+        <input
+         type="button"
+         value="find optimum"
+         onclick="mega_shuffle()">
+        |
+        <input
+         type="button"
+         value="optimize"
+         onclick="optimize_positions(simulation)">
+        <br/>
+        
+        energy: <span id="energy">?</span>
+        | best: <span id="best_energy">?</span>
+        <br/>
+      </div>
+
+      <div id="hs_controls" class="graph_controls">
+        <h1 class="graph_label">Interactions Histogram</h1>
+
+        <input
+         type="checkbox"
+         checked="true"
+         onclick="toggle_hist_collapse(this.checked)">
+        collapse histograms
+        <br/>
+      </div>
+
+      <div id="eg_controls" class="graph_controls">
+        <h1 class="graph_label">Ego Network</h1>
+        <span id="eg_name"></span><br/>
+
+        <input
+         type="button"
+         id="eg_reselect"
+         onclick="set_ego(GRAPH.nodes, GRAPH.dlinks)"
+         value="switch to:"><br/>
+        <span id="eg_next"></span><br/>
+      </div>
+
+      <div id="af_controls" class="graph_controls">
+        <h1 class="graph_label">Single Relationship</h1>
+        <br/>
+      </div>
+
+    </div>
+    <div id="legend">
+      <h1>Colors:</h1>
+      <div id="legend_entries">
+      </div>
+    </div>
+    <div id="graphs">
+      <svg id="force_directed" class="graph"></svg>
+      <svg id="histogram" class="graph"></svg>
+      <svg id="ego" class="graph"></svg>
+      <svg id="relationship" class="graph"></svg>
+    </div>
+    <div id="sidebar">
+      <div id="sidebar-controls">
+        <h1>Characters:</h1>
+        <p>
+        sort by
+        <select id="char_sort" onchange="sort_characters(this.value)"/>
+          <option value="category">category (then name)</option>
+          <option value="name">name</option>
+          <option value="initiated">initiated</option>
+          <option value="received">received</option>
+          <option value="total">total (then initiated)</option>
+        </select>
+        <br/>
+        find:
+        <input
+         type="text"
+         id="char_filter"
+         oninput="filter_characters(this.value)"/><input
+         type="button"
+         value="clear"
+         onclick="this.previousSibling.value = ''; filter_characters('')"/>
+        </p>
+      </div>
+      <div id="charlist">
+      </div>
+    </div>
+    <script src="d3/d3.v4.min.js"></script>
+    <script type="text/javascript">
+
+var FDG = d3.select("#force_directed");
+var FDG_CONTROLS = d3.select("#fd_controls");
+var FDG_WIDTH = +FDG.node().getBoundingClientRect().width;
+var FDG_HEIGHT = +FDG.node().getBoundingClientRect().height;
+// Scroll to middle
+FDG.node().parentNode.scrollTop = FDG_HEIGHT/4;
+FDG.node().parentNode.scrollLeft = FDG_WIDTH/4;
+
+var HIST = d3.select("#histogram");
+var HIST_CONTROLS = d3.select("#hs_controls");
+
+var EGO = d3.select("#ego");
+var EGO_CONTROLS = d3.select("#eg_controls");
+
+var AFFINITY = d3.select("#affinity");
+var AFFINITY_CONTROLS = d3.select("#af_controls");
+
+const DIREDGE_OFFSET = 16;
+
+//var color = d3.scaleOrdinal(d3.schemeCategory20);
+var CAT_COLORS = d3.scaleOrdinal(d3.schemeCategory10);
+var HCOLORS = {
+  "initiated": "#f40083",
+  "received": "#8300f4"
+};
+
+var SYMBOL_LISTS = {
+  "Korean": "ㅁㄴㅇㅂㄷㅈㄱㅃㄸㅉㄲㅍㅌㅊㅋㅅㅎㅆㄹ",
+  "Greek": "αβξδεφγθικλμνοπψρστυωχηζ",
+  "English": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+  "Arabic": "بدفتكطقذزسثشظصضغعءخحهمنرليو",
+  "Devangari": "अइउऋऌएओकखगघङहचछजझञयशटठडढणरषतथदधनलसपफबभमव",
+  "Japanese": "一二三四五六七八九十上中下正日大年会人本月長国出生子分東行同今高金時手見市力米自前円合立内事社者地京間田体学目後新明方部心民対主代言小思山実入回場野開万全定家北問話文動度県水安氏和政保表道相意発不党",
+};
+var GROUP_MAP = {
+  //0: "Japanese",
+  //1: "Devangari",
+  0: "Numeric",
+  1: "Numeric",
+  2: "Numeric",
+  3: "Numeric",
+  4: "Numeric",
+}
+var SYMBOL_MAP = {};
+
+function nth_symbol(group, n) {
+  let ln = GROUP_MAP[group];
+  if (ln == "Numeric") {
+    return "" + (n+1);
+  } else {
+    let sl = SYMBOL_LISTS[ln];
+    return sl[n % sl.length];
+  }
+}
+
+function automap_groups(data) {
+  let group_sizes = {};
+  let by_size = Object.keys(SYMBOL_LISTS).sort(
+    x, y => SYMBOL_LISTS[x].length - SYMBOL_LISTS[y].length
+  );
+  GROUP_MAP = {}
+
+  // Find all the group IDs
+  for (let d of data) {
+    GROUP_MAP[d.group] = 0;
+    if (group_sizes.hasOwnProperty(d.group)) {
+      group_sizes[d.group] += 1;
+    } else {
+      group_sizes[d.group] = 1;
+    }
+  }
+
+  // Figure out the first symbol list that's big enough for each group:
+  let groups = Object.keys(GROUP_MAP);
+  for (let gid of groups) {
+    while (
+      GROUP_MAP[gid] < by_size.length
+   && SYMBOL_LISTS[by_size[GROUP_MAP[gid]]].length < group_sizes[gid]
+   ) {
+      GROUP_MAP[gid] += 1;
+    }
+    if (GROUP_MAP[gid] >= by_size.length) {
+      console.warn(
+        "Group of size " + group_sizes[gid] + " is too large for all available "
+      + "symbol lists."
+      );
+      GROUP_MAP[gid] -= 1;
+    }
+  }
+
+  // Build histogram of usage of each symbols list:
+  usage = [];
+  usage.length = by_size.length; // extend
+  for (let i = 0; i < groups.length; ++i) {
+    let gid = groups[i];
+    let idx = GROUP_MAP[gid];
+    if (usage[idx] == undefined) {
+      usage[idx] = 1;
+    } else {
+      usage[idx] += 1;
+    }
+  }
+
+  // Separate symbol assignment as much as possible:
+  for (let i = 0; i < usage.length; ++i) {
+    let overlap = usage[i];
+    if (overlap != undefined && overlap > 1) {
+      let free = 0;
+      for (let j = i+1; j < usage.length; ++j) {
+        if (usage[j] == undefined) {
+          free += 1;
+        } else {
+          break;
+        }
+      }
+
+      let move = Math.min(free, overlap - 1);
+      for (let x = 0; x < move; ++x) {
+        let reassign = undefined;
+        for (gid of groups) {
+          if (GROUP_MAP[gid] == i) {
+            reassign = gid;
+            break;
+          }
+        }
+        if (reassign) {
+          let old_list = GROUP_MAP[reassign];
+          let new_list = old_list + x + 1;
+          GROUP_MAP[reassign] = new_list;
+          usage[old_list] -= 1;
+          usage[new_list] += 1;
+        }
+      }
+    }
+  }
+
+  // Re-express group map in terms of SYMBOL_LISTS keys:
+  for (g of groups) {
+    GROUP_MAP[g] = by_size[GROUP_MAP[g]];
+  }
+
+}
+
+function set_symbols(group) {
+  assign_auto(GRAPH.nodes, group);
+  refresh_symbols();
+}
+
+function assign_auto(nodes, group) {
+  if (group == undefined) {
+    group = document.getElementById("mark_select").value;
+  }
+  if (group == "important") {
+    assign_symbols(GRAPH.nodes, 2);
+  } else if (group == "all") {
+    assign_symbols(GRAPH.nodes);
+  } else if (group == "none") {
+    assign_symbols(GRAPH.nodes, 5);
+  }
+}
+
+function assign_symbols(data, limit_groups) {
+  // Assign symbols to each data ID using per-group symbol lists:
+  let current = {};
+  let sorted = [...data].sort(
+    (a, b) => (
+      d3.descending(a.initiated, b.initiated)
+   || d3.descending(a.received, b.received)
+   || d3.ascending(a.id, b.id)
+    )
+  );
+  for (let d of sorted) {
+    if (limit_groups && d.group < limit_groups) {
+      SYMBOL_MAP[d.id] = "";
+      continue;
+    }
+    let key = GROUP_MAP[d.group];
+    let cur = current[key] || 0;
+    SYMBOL_MAP[d.id] = nth_symbol(d.group, cur);
+    current[key] = cur + 1;
+  }
+}
+
+
+function symbol_for(d) {
+  return SYMBOL_MAP[d.id]
+}
+
+function font_size_for(d) {
+  let sym = symbol_for(d);
+  let l = sym.length;
+  s = 19 * Math.pow(2/3, Math.max(l-1, 0));
+  return s + "px";
+}
+
+GRAPH_TYPE = "force";
+
+function select_graph(type) {
+  if (type == undefined) {
+    type = GRAPH_TYPE;
+  }
+  GRAPH_TYPE = type;
+
+  // Figure out target:
+  if (type == "force") {
+    target = "force_directed";
+    controls = "fd_controls";
+  } else if (type.slice(0,9) == "histogram") {
+    target = "histogram";
+    controls = "hs_controls";
+  } else if (type == "ego") {
+    target = "ego";
+    controls = "eg_controls";
+  } else if (type == "affinity") {
+    target = "affinity";
+    controls = "af_controls";
+  } else {
+    console.warn("Invalid graph type: '" + type + "'");
+    target = "force_directed";
+    controls = "fd_controls";
+  }
+
+  // Swap visibility:
+  d3.selectAll(".graph").style("display", "none");
+  d3.select("#" + target).style("display", "block");
+  d3.selectAll(".graph_controls").style("display", "none");
+  d3.select("#" + controls).style("display", "block");
+
+  // Scroll to middle if it's the force-directed graph:
+  if (target == "force_directed") {
+    FDG.node().parentNode.scrollTop = FDG_HEIGHT/4;
+    FDG.node().parentNode.scrollLeft = FDG_WIDTH/4;
+  }
+
+  // Actually (re)create the graph:
+  if (type == "force") {
+    set_nodes_and_links(GRAPH.nodes, GRAPH.links);
+  } else if (type == "histogram-i") {
+    set_bars(GRAPH.nodes, "initiated");
+  } else if (type == "histogram-r") {
+    set_bars(GRAPH.nodes, "received");
+  } else if (type == "histogram-c") {
+    set_bars(GRAPH.nodes, "combined");
+  } else if (type == "ego") {
+    set_ego(GRAPH.nodes, GRAPH.dlinks);
+  } else if (type == "pair") {
+    set_pair(GRAPH.nodes, GRAPH.dlinks);
+  } else {
+    // Error messages was already generated above
+    set_nodes_and_links(graph.nodes, graph.links);
+  }
+
+  // Setup legend:
+  set_legend(type);
+}
+
+function set_legend(type) {
+  if (type == "force") {
+    let in_use = [];
+    for (let node of GRAPH.nodes) {
+      if (in_use.indexOf(node.group) < 0) {
+        in_use.push(node.group);
+      }
+    }
+
+    let groups = GRAPH.groups.filter((x, i) => in_use.indexOf(i) >= 0);
+
+    var legend = d3.select("#legend_entries");
+    legend.selectAll("div").remove();
+    var legend_entry = legend.selectAll("div")
+      .data(groups)
+      .enter().append("div");
+
+    legend_entry.append("span")
+      .text(" ")
+      .classed("swatch", true)
+      .style("background-color", (d, i) => CAT_COLORS(i));
+
+    legend_entry.append("span").text(d => d);
+  } else if (
+    type == "histogram-i"
+ || type == "histogram-r"
+ || type == "histogram-c"
+  ) {
+    var legend = d3.select("#legend_entries");
+    legend.selectAll("div").remove();
+    var legend_entry = legend.selectAll("div")
+      .data(Object.keys(HCOLORS))
+      .enter().append("div");
+
+    legend_entry.append("span")
+      .text(" ")
+      .classed("swatch", true)
+      .style("background-color", (d, i) => HCOLORS[d]);
+
+    legend_entry.append("span").text(d => d);
+  } else {
+    console.warn("Invalid graph type: '" + type + "'");
+  }
+}
+
+// Custom bubble force to push marginal characters out to the margins.
+function forceBubble(target, radius, strength) {
+  let nodes, targets, radii, strengths;
+
+  let force = function(alpha) {
+    let node, target, radius, strength;
+    for (let i = 0; i < nodes.length; ++i) {
+      node = nodes[i];
+      target = targets[i];
+      radius = radii[i];
+      strength = strengths[i];
+      let d = distance(node.x, node.y, target[0], target[1]);
+      if (d < radius) {
+        let str = Math.pow(1 - d/radius, 1/3);
+        node.vx += (node.x - target[0]) * str * strength * alpha;
+        node.vy += (node.y - target[1]) * str * strength * alpha;
+      } // otehrwise no effect
+    }
+  }
+
+  function initialize() {
+    if (!nodes) { return; }
+
+    // populate local targets
+    targets = new Array(nodes.length);
+    for (let i = 0; i < nodes.length; i++) {
+      targets[i] = target(nodes[i], i, nodes);
+    }
+
+    // populate local radii
+    radii = new Array(nodes.length);
+    for (let i = 0; i < nodes.length; i++) {
+      radii[i] = radius(nodes[i], i, nodes);
+    }
+
+    // populate local strengths
+    strengths = new Array(nodes.length);
+    for (let i = 0; i < nodes.length; i++) {
+      strengths[i] = strength(nodes[i], i, nodes);
+    }
+  }
+
+  force.initialize = _ => {
+    nodes = _;
+    initialize();
+  }
+
+  force.target = _ => {
+    if (_ == null) { return target; } // no arg so return value
+    
+    // coerce to function
+    target = typeof _ === 'function' ? _ : () => _;
+
+    // reinitialize
+    initialize();
+
+    // allow chaining
+    return force;
+  };
+
+  force.radius = _ => {
+    if (_ == null) { return radius; } // no arg so return value
+    
+    // coerce to function
+    radius = typeof _ === 'function' ? _ : () => +_;
+
+    // reinitialize
+    initialize();
+
+    // allow chaining
+    return force;
+  };
+
+  force.strength = _ => {
+    if (_ == null) { return strength; } // no arg so return value
+    
+    // coerce to function
+    strength = typeof _ === 'function' ? _ : () => +_;
+
+    // reinitialize
+    initialize();
+
+    // allow chaining
+    return force;
+  };
+
+  if (!target) { target = [0, 0]; }
+  if (!radius) { radius = 80; }
+  if (!strength) { strength = 0.1; }
+
+  force.target(target);
+  force.radius(radius);
+  force.strength(strength);
+
+  return force;
+}
+
+function link_distance(link) {
+  //return Math.max(10, 80 - Math.sqrt(link.value));
+  return 10; // until a very near distance, always pull inwards
+}
+
+function link_strength(link) {
+  return (0.1 + 0.8 * (Math.log(link.value) / 6))/5;
+}
+
+link_forces = d3.forceLink()
+  .id(function(d) { return d.id; })
+  .distance(link_distance)
+  .strength(link_strength);
+
+separation_force = d3.forceManyBody()
+  .strength(function () { return -360; })
+  .distanceMax(50);
+
+bubble_force = forceBubble()
+  .target([FDG_WIDTH/2, FDG_HEIGHT/2])
+  .radius(d => d.group == 0 ? 240 : 160)
+  .strength(d => d.group >= 2 ? 0 : 0.4);
+
+gather_force = forceBubble()
+  .target([FDG_WIDTH/2, FDG_HEIGHT/2])
+  .radius(0)
+  .strength(0.1);
+
+var simulation = d3.forceSimulation()
+  .force("link", link_forces)
+  .force("charge", separation_force)
+  .force("center", d3.forceCenter(FDG_WIDTH / 2, FDG_HEIGHT / 2))
+  .force("bubble", bubble_force)
+  .force("gather", gather_force);
+
+function shuffle() {
+  simulation.nodes().forEach(function (n) {
+    n.x = Math.random()*240;
+    n.y = Math.random()*240;
+  });
+  simulation.alpha(1).restart();
+}
+
+function distance(x1, y1, x2, y2) {
+  return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+}
+
+var BEST_ENERGIES = {};
+var BEST_POSITIONS = {};
+
+function compute_vel_energy(simulation, dont_track) {
+  // Vel energy is simply computed by looking at the velocity of each node.
+  // Even when the simulation cools, the cooling is applied *after* velocities
+  // are computed, so this measure thoroughly accounts for all simulation
+  // forces.
+  e = 0;
+  for (let node of simulation.nodes()) {
+    e += Math.sqrt(node.vx * node.vx + node.vy * node.vy) / simulation.alpha();
+  }
+  // Track best energy
+  if (!dont_track) {
+    let n = simulation.nodes().length;
+    if (BEST_ENERGIES[n] == undefined || e < BEST_ENERGIES[n]) {
+      BEST_ENERGIES[n] = e;
+      document.getElementById("best_energy").innerHTML = e.toExponential(3);
+      BEST_POSITIONS[n] = [];
+      for (let node of simulation.nodes()) {
+        BEST_POSITIONS[n].push([node.x, node.y]);
+      }
+    }
+  }
+  return e;
+}
+
+function compute_pull_energy(simulation, dont_track) {
+  // Pull energy attempts to account for both stretched links (but it doesn't
+  // penalize compressed links) and for the amount of charge force that's
+  // applied across all nodes (roughly a measure of crowding).
+  e = 0;
+  // Add energy from stretched (but not compressed) links
+  for (let link of simulation.force("link").links()) {
+    let x1 = link.source.x;
+    let y1 = link.source.y;
+    let x2 = link.target.x;
+    let y2 = link.target.y;
+    let d = distance(x1, y1, x2, y2);
+    let target_d = link_distance(link);
+    if (d > target_d) {
+      // TODO: Account for link_strength here?
+      e += Math.pow(target_d - d, 2);
+    }
+  }
+  // Add energy from charge force
+  for (node of simulation.nodes()) {
+    for (other of simulation.nodes()) {
+      if (node === other) {
+        continue;
+      }
+      let d = distance(node.x, node.y, other.x, other.y);
+      let md = separation_force.distanceMax();
+      if (d < md) {
+        e += -separation_force.strength()() * (1 - d/md);
+      }
+    }
+  }
+  // Track best energy
+  if (!dont_track) {
+    let n = simulation.nodes().length;
+    if (BEST_ENERGIES[n] == undefined || e < BEST_ENERGIES[n]) {
+      BEST_ENERGIES[n] = e;
+      document.getElementById("best_energy").innerHTML = e.toExponential(3);
+      BEST_POSITIONS[n] = [];
+      for (let node of simulation.nodes()) {
+        BEST_POSITIONS[n].push([node.x, node.y]);
+      }
+    }
+  }
+  return e;
+}
+
+function compute_stretch_energy(simulation, dont_track) {
+  // Stretch energy is simply proportional to the total length of each link,
+  // but weighted (linearly) according to the value of that link (total number
+  // of interactions in either direction).
+  e = 0;
+  for (let link of simulation.force("link").links()) {
+    let x1 = link.source.x;
+    let y1 = link.source.y;
+    let x2 = link.target.x;
+    let y2 = link.target.y;
+    let d = distance(x1, y1, x2, y2);
+    e += d * link.value;
+  }
+  // Track best energy
+  if (!dont_track) {
+    let n = simulation.nodes().length;
+    if (BEST_ENERGIES[n] == undefined || e < BEST_ENERGIES[n]) {
+      BEST_ENERGIES[n] = e;
+      document.getElementById("best_energy").innerHTML = e.toExponential(3);
+      BEST_POSITIONS[n] = [];
+      for (let node of simulation.nodes()) {
+        BEST_POSITIONS[n].push([node.x, node.y]);
+      }
+    }
+  }
+  return e;
+}
+
+// Select which energy implementation we're using:
+//var compute_energy = compute_vel_energy;
+//var compute_energy = compute_pull_energy;
+var compute_energy = compute_stretch_energy;
+
+function optimize_positions(simulation) {
+  i = 0
+  let n = simulation.nodes().length;
+  if (BEST_POSITIONS[n] == undefined) {
+    console.warn(
+        "Can't optimize before any best positions have been observed."
+    );
+    return;
+  }
+  for (let node of simulation.nodes()) {
+    node.x = BEST_POSITIONS[n][i][0];
+    node.y = BEST_POSITIONS[n][i][1];
+    i += 1;
+  }
+  simulation.alpha(1).restart();
+}
+
+function mega_shuffle() {
+  best = undefined;
+  best_starts = undefined;
+  for (let i = 0; i < 50; ++i) { // 50 trials
+    simulation.alpha(1); // reset alpha to 1
+    simulation.nodes().forEach(function (n) {
+      n.x = Math.random()*20;
+      n.y = Math.random()*20;
+    });
+    for (let j = 0; j < 3; ++j) { // tick and relax in 3 waves:
+      for (let k = 0; k < 100; ++k) { // run 100 ticks
+        simulation.tick();
+      }
+      simulation.alpha(1); // reset alpha to 1
+    }
+    for (let k = 0; k < 300; ++k) { // run another 300 ticks
+      simulation.tick();
+    }
+    compute_energy(simulation, false); // compute final energy and record it
+  }
+
+  // Set node positions to best positions found:
+  optimize_positions(simulation);
+
+  simulation.alpha(1).restart();
+}
+
+var GRAPH = null;
+var LINKS = null;
+var NODES = null;
+var BARS = null;
+var CHARACTERS = null;
+var EGO_RANKING = null;
+var EGO_CURRENT = null;
+var EGO_NODES = null;
+var EGO_LINKS = null;
+var AFFINITY_NODES = null;
+var AFFINITY_LINKS = null;
+
+// Links groups before nodes groups here to get correct overlap:
+var LINKS_GROUP = FDG.append("g").attr("class", "links");
+var NODES_GROUP = FDG.append("g").attr("class", "nodes");
+var LABELS_GROUP = FDG.append("g").attr("class", "labels");
+var BARS_GROUP = HIST.append("g").attr("class", "bars");
+var EGO_LINKS_GROUP = EGO.append("g").attr("class", "links");
+var EGO_NODES_GROUP = EGO.append("g").attr("class", "nodes");
+var AFFINITY_LINKS_GROUP = AFFINITY.append("g").attr("class", "links");
+var AFFINITY_NODES_GROUP = AFFINITY.append("g").attr("class", "nodes");
+
+// List of characters in sidebar:
+var CHARLIST = d3.select("#charlist")
+
+function link_class(link) {
+  if (link.source.group >= 2 && link.target.group >= 2) {
+    return "major";
+  } else if (link.source.group == 0 || link.target.group == 0) {
+    return "passive";
+  } else {
+    return "minor";
+  }
+}
+
+function refresh_symbols() {
+  // Updates symbols using the current symbol assignment to update the
+  // necessary SVG elements.
+
+  // Force-directed graph
+  if (NODES) {
+    NODES.selectAll("text.symbol").remove();
+    NODES.append("text")
+      .text(d => symbol_for(d))
+      .style("font-size", d => font_size_for(d))
+      .classed("symbol", true)
+      .attr('x', 0)
+      .attr('y', 0)
+      .on("mouseover", hoverstarted)
+      .on("mouseout", hoverended)
+      .on("click", d => toggle_select(d, !d.__selected__))
+      .call(d3.drag()
+        .on("start", dragstarted)
+        .on("drag", dragged)
+        .on("end", dragended));
+  }
+
+  // Ego graph
+  if (EGO_NODES) {
+    EGO_NODES.selectAll("text.symbol").remove();
+    EGO_NODES.append("text")
+      .text(d => symbol_for(d))
+      .style("font-size", d => font_size_for(d))
+      .classed("symbol", true)
+      .attr('x', 0)
+      .attr('y', 0)
+      .on("click", d => toggle_select(d, !d.__selected__))
+  }
+
+  // Sidebar
+  CHARACTERS.select("span.symbol")
+    .text(function (d) { return symbol_for(d); });
+}
+
+function set_nodes_and_links(nodes, links) {
+  // Assign symbols:
+  assign_auto(nodes);
+
+  // Note: order that we add things here doesn't matter because they all go
+  // into groups that are already ordered correctly for stacking.
+  // Nodes:
+  NODES_GROUP.selectAll("g").remove();
+  NODES = NODES_GROUP.selectAll("g")
+    .data(nodes)
+    .enter().append("g");
+
+  NODES.each(function(d) { d.__node__ = this; });
+
+  var node_titles = NODES.append("title")
+    .text(function(d) {
+      return (
+        d.id
+      + "\nInitiated: " + d.initiated
+      + "\nReceived: " + d.received
+      );
+    });
+
+  // Add circles last so they sit on top of edges:  
+  var circles = NODES.append("circle")
+    .attr("fill", function(d) { return CAT_COLORS(d.group); })
+    .style("cursor", "crosshair")
+    .on("mouseover", hoverstarted)
+    .on("mouseout", hoverended)
+    .on("click", d => toggle_select(d, !d.__selected__))
+    .call(d3.drag()
+      .on("start", dragstarted)
+      .on("drag", dragged)
+      .on("end", dragended));
+
+  LINKS_GROUP.selectAll("g").remove()
+  LINKS = LINKS_GROUP.selectAll("g")
+    .data(links)
+    .enter().append("g");
+
+  LINKS.each(function(d) { d.__edge__ = this; });
+
+  // Edges go first so that they end up at the back:
+  var edges = LINKS.append("line")
+    .classed("edge", true)
+    .attr(
+      "stroke-width",
+      function(d) { return d.value > 1 ? 0.5 + Math.sqrt(d.value) : 1; }
+    );
+
+  // After simulation links have been added
+  LINKS.attr(
+    "class",
+    function(d) {
+      let cls = link_class(d);
+      return "link " + cls;
+    }
+  )
+  .style(
+    'visibility',
+    function (d) {
+      let cls = link_class(d);
+      ["hidden", "visible"][+SHOW_LINKS[cls]];
+    }
+  );
+
+  var edge_titles = LINKS.append("title")
+    .text(function(d) { return d.value; });
+
+  // Labels last so they're over everything else:
+  var labels = FDG.selectAll("g.label")
+    .data(nodes)
+    .enter().append("g");
+
+  labels
+    .classed("label", true)
+    .attr(
+      'transform',
+      "translate(" + (FDG_WIDTH/4 + 12) + "," + (FDG_HEIGHT/4 + 24) + ")"
+    )
+    .style('visibility', "hidden")
+    .each(function(d) { d.__label__ = this; });
+
+  // reposition labels if/when the graph is scrolled
+  d3.select("#graphs")
+    .on("scroll", function () {
+      let st = this.scrollTop;
+      let sl = this.scrollLeft;
+      let pos = "translate(" + (sl + 12) + "," + (st + 24) + ")";
+      labels.attr('transform', pos);
+    });
+
+  var ltext = labels.append("text")
+    .classed("label-text", true)
+    .attr('z', 20)
+    .text(function(d) {
+      return d.id;
+    })
+    .each( // can't use d3 to create backing because order matters
+      function () {
+        let backing = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "rect"
+        );
+        backing.classList.add("backing");
+        let mybb = this.getBBox();
+        backing.setAttribute('x', mybb.x - 4);
+        backing.setAttribute('y', mybb.y - 2);
+        backing.setAttribute('width', mybb.width + 8);
+        backing.setAttribute('height', mybb.height + 4);
+        this.parentNode.insertBefore(backing, this);
+      }
+    );
+
+  // Character divs on the sidebar:
+  CHARLIST.selectAll("div").remove()
+  CHARACTERS = CHARLIST.selectAll("div")
+    .data(nodes)
+    .enter().append("div")
+  CHARACTERS
+    .classed("character", true)
+    .classed("selected", d => SELECTED_NODES.has(d.id))
+    .each(function(d) { d.__char__ = this; });
+  sort_characters(document.getElementById("char_sort").value);
+
+  refresh_symbols();
+
+  function ticked() {
+    edges
+        .attr("x1", function(d) { return d.source.x; })
+        .attr("y1", function(d) { return d.source.y; })
+        .attr("x2", function(d) { return d.target.x; })
+        .attr("y2", function(d) { return d.target.y; });
+
+    NODES
+        .attr("transform", function(d) {
+          return "translate(" + d.x + "," + d.y + ")";
+        })
+
+    let e = compute_energy(
+        simulation,
+        simulation.alpha() > simulation.alphaMin()
+    );
+
+    document.getElementById("energy").innerHTML = e.toExponential(3);
+  }
+
+  simulation
+      .nodes(nodes)
+      .on("tick", ticked);
+
+  // Note: this is where link source/target IDs are replaced with source/target
+  // node refs!
+  simulation.force("link")
+      .links(links);
+
+  simulation.force("bubble").initialize(nodes);
+
+  simulation.alpha(1).restart();
+}
+
+BAR_TYPE = "initiated";
+
+function font_size_for_digits(value, base_size) {
+  let llen = ("" + value).length;
+  if (llen <= 1) {
+    result = base_size;
+  } else if (llen == 2) {
+    result = (base_size - 1);
+  } else if (llen == 3) {
+    result = (base_size - 2);
+  } else if (llen == 4) {
+    result = (base_size - 4);
+  } else if (llen == 5) {
+    result = (base_size - 6);
+  } else {
+    result = (base_size - 8);
+  }
+  if (result < 4) {
+    console.warn(
+      "Value '" + value + "' with base font size " + base_size + " resulted in "
+    + "very small text (" + result + "pt)."
+    );
+  } else if (result < 2) {
+    console.error(
+      "Value '" + value + "' with base font size " + base_size + " resulted in "
+    + "illegible text (" + result + "pt)."
+    );
+  }
+  return result + "pt";
+}
+
+function set_bars(data, plot) {
+  // Assign symbols:
+  assign_auto(data);
+
+  if (plot == undefined) {
+    plot = BAR_TYPE;
+  }
+  BAR_TYPE = plot;
+
+  // Figure out size of histogram:
+  let hist_width = +HIST.node().parentNode.getBoundingClientRect().width;
+  let hist_height = +HIST.node().parentNode.getBoundingClientRect().height;
+
+  // Compute selected bars:
+  let sel = {
+    "initiated": new Set(),
+    "received": new Set()
+  };
+  let sel_data = NODES.data().filter(d => SELECTED_NODES.has(d.id));
+  for (let d of sel_data) {
+    sel.initiated.add(d.initiated);
+    sel.received.add(d.received);
+  }
+
+  // Build histograms:
+  let hist = [];
+
+  for (let d of data) {
+    if (plot == "combined") {
+      let i = d['initiated'];
+      let r = d['received'];
+      if (hist[i]) {
+        hist[i][0] += 1;
+      } else {
+        hist[i] = [1, 0];
+      }
+      if (hist[r]) {
+        hist[r][1] += 1;
+      } else {
+        hist[r] = [0, 1];
+      }
+    } else {
+      let val = d[plot];
+      if (hist[val]) {
+        hist[val] += 1;
+      } else {
+        hist[val] = 1;
+      }
+    }
+  }
+
+  let hbars = [];
+  for (let i = 0; i < hist.length; ++i) {
+    if (hist[i] == undefined && COLLAPSE_HISTOGRAMS) {
+      continue; // don't add a bar
+    }
+    if (plot == "combined") {
+      hbars.push([i, hist[i] || [0, 0]]);
+    } else {
+      hbars.push([i, hist[i] || 0]);
+    }
+  }
+  let max_val;
+  if (plot == "combined") {
+    max_val = Math.max(...hbars.map(x => Math.max(...x[1])));
+  } else {
+    max_val = Math.max(...hbars.map(x => x[1]));
+  }
+
+  let bar_width = Math.max(
+    24,
+    (hist_width - 30) / Math.min(20, hbars.length)
+  );
+
+  if (plot == "combined") {
+    function bar_height(d) {
+      return (d/max_val) * (hist_height - 45)/2;
+    }
+    function bar_top(d) {
+      return (hist_height - 30)/2 - bar_height(d[0]);
+    }
+    function bar_bot(d) {
+      return (hist_height - 30)/2 + 30 + bar_height(d[1]);
+    }
+  } else {
+    function bar_height(d) {
+      return (d/max_val) * (hist_height - 45);
+    }
+    function bar_top(d) {
+      return hist_height - 30 - bar_height(d);
+    }
+  }
+
+  BARS_GROUP.selectAll("rect").remove();
+  BARS = BARS_GROUP.selectAll("rect.bar.above")
+    .data(hbars)
+    .enter().append("rect");
+
+  BARS
+    .classed("bar", true)
+    .classed("above", true)
+    .attr('x', (d, i) => 15 + i*bar_width + bar_width/20)
+    .attr('y', d => bar_top(d[1]))
+    .attr('width', bar_width - bar_width/10)
+    .on(
+      "click",
+      function (d) {
+        let chars = CHARACTERS.data();
+        let rect_node = this;
+        let was_selected = rect_node.classList.contains("selected");
+        for (let ch of chars) {
+          if (
+            (plot == "combined" && ch.initiated == d[0])
+         || ch[plot] == d[0]
+          ) {
+            toggle_select(ch, !was_selected);
+          }
+        }
+      }
+    );
+
+  if (plot == "combined") {
+    BARS
+      .classed("initiated", true)
+      .classed("selected", d => sel.initiated.has(d[0]))
+      .attr('fill', HCOLORS['initiated'])
+      .attr('height', d => bar_height(d[1][0]));
+  } else {
+    BARS
+      .classed(plot, true)
+      .classed("selected", d => sel[plot].has(d[0]))
+      .attr('fill', HCOLORS[plot])
+      .attr('height', d => bar_height(d[1]));
+  }
+
+  BARS_GROUP.selectAll("text").remove();
+
+  let names = [];
+  let nd = [...NODES.data()];
+  nd.sort((a, b) => d3.ascending(a.id, b.id));
+  if (plot == "combined") {
+    nd.forEach(
+      function(d) {
+        if (names[d.initiated]) {
+          names[d.initiated] += "\n" + d.id;
+        } else {
+          names[d.initiated] = d.id;
+        }
+      }
+    )
+  } else {
+    nd.forEach(
+      function(d) {
+        if (names[d[plot]]) {
+          names[d[plot]] += "\n" + d.id;
+        } else {
+          names[d[plot]] = d.id;
+        }
+      }
+    )
+  }
+
+  let bar_titles = BARS.append("title")
+    .text(d => names[d[0]]);
+
+  let ticks = BARS_GROUP.selectAll("text.tick")
+    .data(hbars)
+    .enter().append("text")
+      .classed("tick", true)
+      .text(d => d[0])
+      .style("text-anchor", "middle")
+      .style("font-size", (d, i) => font_size_for_digits(d[0], 12))
+      .attr('x', (d, i) => 15 + i*bar_width + bar_width/2);
+
+  if (plot == "combined") {
+    ticks
+      .attr('y', (hist_height/2))
+      .style("alignment-baseline", "central");
+  } else {
+    ticks
+      .attr('y', hist_height - 20)
+      .style("alignment-baseline", "hanging");
+  }
+
+  let labels = BARS_GROUP.selectAll("text.label.above")
+    .data(hbars)
+    .enter().append("text")
+      .classed("label", true)
+      .classed("above", true)
+      .style("text-anchor", "middle")
+      .style("font-size", (d, i) => font_size_for_digits(d[0], 10))
+      .attr('x', (d, i) => 15 + i*bar_width + bar_width/2);
+
+  let lp = 4;
+  let ll = 18;
+
+  if (plot == "combined") {
+    labels
+      .classed("initiated", true)
+      .text(d => d[1][0])
+      .style("visibility", d => d[1][0] > 0 ? "visible" : "hidden")
+      .attr('fill', d => bar_height(d[1][0]) > ll ? 'white': 'black')
+      .attr(
+        'y',
+        d => bar_height(d[1][0]) > ll ? bar_top(d[1]) + lp: bar_top(d[1]) - lp
+      )
+      .style(
+        "alignment-baseline",
+        d => bar_height(d[1][0]) > ll ? "hanging": "baseline"
+      );
+  } else {
+    labels
+      .classed(plot, true)
+      .text(d => d[1])
+      .style("visibility", d => d[1] > 0 ? "visible" : "hidden")
+      .attr('fill', d => bar_height(d[1]) > ll ? 'white': 'black')
+      .attr(
+        'y',
+        d => bar_height(d[1]) > ll ? bar_top(d[1]) + lp: bar_top(d[1]) - lp
+      )
+      .style(
+        "alignment-baseline",
+        d => bar_height(d[1]) > ll ? "hanging": "baseline"
+      );
+  }
+
+  // Extra bars going downwards:
+  if (plot == "combined") {
+    BARS = BARS_GROUP.selectAll("rect.bar.below")
+      .data(hbars)
+      .enter().append("rect")
+      .classed("bar", true)
+      .classed("below", true)
+      .classed("received", true)
+      .classed("selected", d => sel.received.has(d[0]))
+      .attr('x', (d, i) => 15 + i*bar_width + bar_width/20)
+      .attr('width', bar_width - bar_width/10)
+      .attr('height', d => bar_height(d[1][1]))
+      .attr('y', (hist_height - 30)/2 + 30)
+      .attr('fill', HCOLORS['received'])
+      .on(
+        "click",
+        function (d) {
+          let chars = CHARACTERS.data();
+          let rect_node = this;
+          let was_selected = rect_node.classList.contains("selected");
+          for (let ch of chars) {
+            if (ch.received == d[0]) {
+              toggle_select(ch, !was_selected);
+            }
+          }
+        }
+      );
+
+    let bot_names = [];
+    let nd = [...NODES.data()];
+    nd.sort((a, b) => d3.ascending(a.id, b.id));
+    nd.forEach(
+      function(d) {
+        if (bot_names[d.received]) {
+          bot_names[d.received] += "\n" + d.id;
+        } else {
+          bot_names[d.received] = d.id;
+        }
+      }
+    )
+
+    let bot_titles = BARS.append("title")
+      .text(d => bot_names[d[0]]);
+
+    let bot_labels = BARS_GROUP.selectAll("text.label.below")
+      .data(hbars)
+      .enter().append("text")
+        .classed("label", true)
+        .classed("below", true)
+        .text(d => d[1][1])
+        .style("visibility", d => d[1][1] > 0 ? "visible" : "hidden")
+        .style("text-anchor", "middle")
+        .style("font-size", (d, i) => font_size_for_digits(d[0], 10))
+        .attr('x', (d, i) => 15 + i*bar_width + bar_width/2)
+        .attr('fill', d => bar_height(d[1]) > ll ? 'white': 'black')
+        .attr(
+          'y',
+          d => bar_height(d[1][1]) > ll ? bar_bot(d[1]) - lp: bar_bot(d[1]) + lp
+        )
+        .style(
+          "alignment-baseline",
+          d => bar_height(d[1][1]) > ll ? "baseline": "hanging"
+        );
+  }
+
+  // overflow-x on #graphs + this = scroll
+  d3.select("#histogram").style('width', 30 + bar_width * hbars.length);
+}
+
+function lookup_node(id) {
+  // Looks up a node by its ID value
+  for (let i = 0; i < GRAPH.nodes.length; ++i) {
+    if (GRAPH.nodes[i].id === id) {
+      return GRAPH.nodes[i];
+    }
+  }
+  return undefined;
+}
+
+function ensure_single_selected() {
+  // Ensures that exactly one node is selected. Selects the node with the most
+  // initiated + received interactions if none is already selected, or the
+  // most-recently-selected node if multiple are selected.
+  if (SELECTED_NODES.size == 0) {
+    let sorted_nodes = [...GRAPH.nodes].sort(
+      function(a, b) {
+        return (
+          d3.descending(a.initiated + a.received, b.initiated + b.received)
+       || d3.descending(a.initiated, b.initiated)
+       || d3.descending(a.received, b.received)
+       || d3.ascending(a.id, b.id)
+        );
+      }
+    );
+    toggle_select(sorted_nodes[0], true);
+  } else if (SELECTED_NODES.size > 1) {
+    // deselect all but the most-recently-selected node
+    let deselect = [];
+    for (let i = 0; i < SELECTION_ORDER.length - 1; ++i) {
+      deselect.push(SELECTION_ORDER[i]);
+    }
+    for (let i = 0; i < deselect.length; ++i) {
+      toggle_select(lookup_node(deselect[i]), false);
+    }
+  }
+}
+
+function ensure_at_least_two_selected() {
+  // Works like ensure_pair_selected, but does not deselect nodes if more than
+  // two are selected.
+  if (SELECTED_NODES.size < 2) {
+    ensure_single_selected();
+    let from_node = lookup_node(SELECTION_ORDER[0]);
+    let links_touching = [];
+    for (let link of GRAPH.links) {
+      if (link.source === from_node || link.target === from_node) {
+        links_touching.push(link);
+      }
+    }
+    let best = 0;
+    let chosen = undefined;
+    for (let other of GRAPH.nodes) {
+      let value = 0;
+      for (let link of links_touching) {
+        if ( // TODO: This could be more efficient (we know who comes first)
+          (link.source == from_node && link.target === other)
+       || (link.target == from_node && link.source === other)
+        ) {
+          value += link.value;
+        }
+      }
+      if (value > best) {
+        best = value;
+        chosen = other;
+      }
+    }
+    if (chosen == undefined) {
+      chosen = GRAPH.nodes[0];
+    }
+    // Select that node
+    toggle_select(chosen, true);
+
+  } // don't do anything here...
+}
+
+function ensure_pair_selected() {
+  // Ensures that exactly two nodes are selected. If more than two nodes are
+  // selected, it deselects all but the most recent pair. Otherwise, it first
+  // ensures that one node is selected (see ensure_single_selected) and then
+  // adds the node that has the most interactions with that node (or just the
+  // first node in the graph if that node has no interactions at all).
+
+  if (SELECTED_NODES.size < 2) {
+    ensure_at_least_two_selected();
+  } else if (SELECTED_NODES.size > 2) { // too many selected
+    // deselect all but the two most-recently-selected nodes
+    let deselect = [];
+    for (let i = 0; i < SELECTION_ORDER.length - 2; ++i) {
+      deselect.push(SELECTION_ORDER[i]);
+    }
+    for (let i = 0; i < deselect.length; ++i) {
+      toggle_select(lookup_node(deselect[i]), false);
+    }
+  }
+}
+
+function node_affinity(from, to) {
+  // Returns an affinity value between the two nodes (the number of times
+  // either entity spoke to the other). Returns zero for entities that have
+  // never spoken to each other, and when the same node is both from and to,
+  // unless that entity has talked to itself.
+  // TODO: make this more efficient?
+  for (let link of GRAPH.links) {
+    if (
+      (link.source === from && link.target === to)
+   || (link.source === to && link.target === from)
+    ) {
+      return link.value;
+    }
+  }
+  return 0;
+}
+
+function ego_layout_position(focus, node) {
+  // Returns an [x, y] array specifying the position for the given node in an
+  // ego layout that's focused on the given focus node. Returns undefined for
+  // nodes that aren't directly connected to the given focus node. Arranges
+  // nodes in a spiral, starting with the most-interacting node on the right
+  // and continuing clockwise, moving outwards to show relative strength of
+  // connection.
+  let s_width = +EGO.node().getBoundingClientRect().width;
+  let s_height = +EGO.node().getBoundingClientRect().height;
+  let dim = Math.max(1, Math.min(s_width, s_height));
+  if (node === focus) {
+    return [s_width / 2, s_height / 2];
+  } else {
+    let theta = 0;
+    let incr = 2*Math.PI / EGO_RANKING.length;
+    for (let i = 0; i < EGO_RANKING.length; ++i) {
+      let aff = EGO_RANKING[i][0];
+      let nd = EGO_RANKING[i][1];
+      if (nd === node) {
+        let r = (dim*.47) * (1 - (aff / EGO_RANKING[0][0]) / 2);
+        return [
+          s_width / 2 + Math.cos(theta) * r,
+          s_height / 2 + Math.sin(theta) * r
+        ];
+      }
+      theta += incr;
+    }
+  }
+  // TODO: TEST THIS
+  // We didn't find this node in the EGO_RANKING:
+  return undefined;
+}
+
+function dir_ego_edge_points(focus, dlink) {
+  // Computes the edge points for a directional edge in an ego graph. A
+  // directional edge has five edge points:
+  // x0/y0: the start position
+  // xl/y1: the position of the outgoing control point
+  // xm/ym: the midpoint
+  // x2/y2: the position of the arriving control point
+  // x3/y3: the end position
+  let src_node = dlink.source.__ego_node__;
+  let trg_node = dlink.target.__ego_node__;
+  if (src_node == trg_node) {
+    let pos = ego_layout_position(focus, dlink.source);
+    return {
+      "x0": pos[0],
+      "y0": pos[1],
+      "x1": pos[0],
+      "y1": pos[1],
+      "xm": pos[0],
+      "ym": pos[1],
+      "x2": pos[0],
+      "y2": pos[1],
+      "x3": pos[0],
+      "y3": pos[1],
+    };
+  } else {
+    let srcpos = ego_layout_position(focus, dlink.source);
+    let trgpos = ego_layout_position(focus, dlink.target);
+    let vector = [trgpos[0] - srcpos[0], trgpos[1] - srcpos[1]];
+    let theta = Math.atan2(vector[1], vector[0]);
+    let rot = theta + Math.PI/6;
+    let src_offset = [
+      DIREDGE_OFFSET * Math.cos(rot),
+      DIREDGE_OFFSET * Math.sin(rot)
+    ];
+    let unrot = theta - Math.PI/6;
+    let trg_offset = [
+      -DIREDGE_OFFSET * Math.cos(unrot),
+      -DIREDGE_OFFSET * Math.sin(unrot)
+    ];
+    return {
+      "x0": srcpos[0],
+      "y0": srcpos[1],
+      "x1": srcpos[0] + src_offset[0],
+      "y1": srcpos[1] + src_offset[1],
+      "xm": (srcpos[0] + src_offset[0] + trgpos[0] + trg_offset[0])/2,
+      "ym": (srcpos[1] + src_offset[1] + trgpos[1] + trg_offset[1])/2,
+      "x2": trgpos[0] + trg_offset[0],
+      "y2": trgpos[1] + trg_offset[1],
+      "x3": trgpos[0],
+      "y3": trgpos[1],
+    };
+  }
+}
+
+function set_ego(nodes, dlinks) {
+  // Sets up the ego graph, resetting the selection to be a single node (the
+  // first one that was selected if several are now, or the most-interacting
+  // character if no character is selected).
+  ensure_single_selected();
+
+  // Look up size of svg element:
+  var s_width = +EGO.node().getBoundingClientRect().width;
+  var s_height = +EGO.node().getBoundingClientRect().height;
+
+  // Assign symbols:
+  assign_auto(nodes);
+
+  // Get selected node:
+  let focus_node = lookup_node(SELECTION_ORDER[0]);
+
+  // Set controls:
+  EGO_CURRENT = focus_node.id;
+  d3.select("#eg_name").text(focus_node.id);
+  d3.select("#eg_reselect").node().disabled = true;
+  d3.select("#eg_next").text(focus_node.id);
+
+  // Compute affinities and rank nodes:
+  EGO_RANKING = [];
+  for (let node of nodes) {
+    if (node != focus_node) {
+      let aff = node_affinity(focus_node, node);
+      if (aff > 0) {
+        EGO_RANKING.push([aff, node]);
+      }
+    }
+  }
+
+  // Sort in descending order by affinity scores:
+  EGO_RANKING = EGO_RANKING.sort( (a, b) => d3.descending(a[0], b[0]) );
+
+  EGO_NODES_GROUP.selectAll("g").remove();
+  for (let node of nodes) {
+    node.ego_pos = ego_layout_position(focus_node, node);
+  }
+  // Create ego nodes from visible nodes:
+  let visible_nodes = nodes.filter(n => n.ego_pos != undefined);
+  let relevant_edges = dlinks.filter(
+    l => l.source == focus_node.id
+ || l.target == focus_node.id
+  );
+  // We have to replace source/target ID refs with pointers ourselves:
+  relevant_edges.forEach(
+    function (dlink) {
+      dlink.source = lookup_node(dlink.source);
+      dlink.target = lookup_node(dlink.target);
+    }
+  );
+
+  EGO_NODES = EGO_NODES_GROUP.selectAll("g")
+    .data(visible_nodes)
+    .enter().append("g");
+
+  EGO_NODES.each(function(d) { d.__ego_node__ = this; });
+
+  EGO_NODES.attr(
+    "transform",
+    function(d) {
+      return "translate(" + d.ego_pos[0] + "," + d.ego_pos[1] + ")";
+    }
+  );
+
+  var circles = EGO_NODES.append("circle")
+    .attr("fill", function(d) { return CAT_COLORS(d.group); })
+    .style("cursor", "crosshair")
+    .on("mouseover", hoverstarted)
+    .on("mouseout", hoverended)
+    .on("click", d => toggle_select(d, !d.__selected__))
+    .call(d3.drag()
+      .on("start", dragstarted)
+      .on("drag", dragged)
+      .on("end", dragended));
+
+  // Links
+  EGO_LINKS_GROUP.selectAll("g").remove()
+  EGO_LINKS = EGO_LINKS_GROUP.selectAll("g")
+    .data(relevant_edges)
+    .enter().append("g");
+
+  EGO_LINKS.each(function(d) { d.__ego_edge__ = this; });
+
+  var edges = EGO_LINKS.append("path")
+    .classed("directional-edge", true)
+    .attr(
+      "stroke-width",
+      function(d) { return d.value > 1 ? 0.5 + Math.sqrt(d.value) : 1; }
+    );
+
+  edges
+    .attr(
+      "d",
+      function(d) {
+        let points = dir_ego_edge_points(focus_node, d);
+        console.log(points);
+        return (
+          "M " + points.x0 + " " + points.y0
+        + " Q " + points.x1 + " " + points.y1
+          + " " + points.xm + " " + points.ym
+        + " Q " + points.x2 + " " + points.y2
+          + " " + points.x3 + " " + points.y3
+        );
+      }
+    );
+
+  // node labels
+  var labels = EGO.selectAll("g.label")
+    .data(visible_nodes)
+    .enter().append("g");
+
+  labels
+    .classed("label", true)
+    .attr(
+      'transform',
+      "translate(" + (s_width/4 + 12) + "," + (s_height/4 + 24) + ")"
+    )
+    .style('visibility', "hidden")
+    .each(function(d) { d.__ego_label__ = this; });
+
+  // reposition labels if/when the graph is scrolled
+  d3.select("#graphs")
+    .on("scroll", function () {
+      let st = this.scrollTop;
+      let sl = this.scrollLeft;
+      let pos = "translate(" + (sl + 12) + "," + (st + 24) + ")";
+      labels.attr('transform', pos);
+    });
+
+  var ltext = labels.append("text")
+    .classed("label-text", true)
+    .attr('z', 20)
+    .text(function(d) {
+      return d.id;
+    })
+    .each( // can't use d3 to create backing because order matters
+      function () {
+        let backing = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "rect"
+        );
+        backing.classList.add("backing");
+        let mybb = this.getBBox();
+        backing.setAttribute('x', mybb.x - 4);
+        backing.setAttribute('y', mybb.y - 2);
+        backing.setAttribute('width', mybb.width + 8);
+        backing.setAttribute('height', mybb.height + 4);
+        this.parentNode.insertBefore(backing, this);
+      }
+    );
+
+
+  var node_titles = EGO_NODES.append("title")
+    .text(function(d) {
+      return (
+        d.id
+      + "\nInitiated: " + d.initiated
+      + "\nReceived: " + d.received
+      );
+    });
+
+  var edge_titles = EGO_LINKS.append("title")
+    .text(function(d) { return d.value; });
+
+  // Character divs on the sidebar:
+  CHARLIST.selectAll("div").remove()
+  CHARACTERS = CHARLIST.selectAll("div")
+    .data(visible_nodes)
+    .enter().append("div")
+  CHARACTERS
+    .classed("character", true)
+    .classed("selected", d => SELECTED_NODES.has(d.id))
+    .each(function(d) { d.__ego_char__ = this; });
+  sort_characters(document.getElementById("char_sort").value);
+
+  // Update symbols
+  refresh_symbols();
+}
+
+function set_affinity(nodes, links) {
+  // Sets up the affinity graph using the currently selected nodes, and first
+  // ensuring that at least two nodes are selected. Each selected node is
+  // arranged on the perimeter of a circle, and the rest of the nodes which
+  // have at least some affinity for one or more selected nodes are arranged
+  // inside it according to their relative affinity among the selected nodes,
+  // or outside it if they have exclusive affinity for exactly one of the
+  // selected nodes.
+  ensure_at_least_two_selected();
+
+  // Assign symbols:
+  assign_auto(nodes);
+}
+
+function receive_data(graph) {
+  // Sets up the system using the given graph data.
+  GRAPH = graph;
+  select_graph(document.getElementById("graph_select").value);
+}
+
+function dragstarted(d) {
+  if (!d3.event.active) {
+    simulation.alphaTarget(0.3).restart();
+  }
+  d.fx = d.x;
+  d.fy = d.y;
+}
+
+function dragged(d) {
+  d.fx = d3.event.x;
+  d.fy = d3.event.y;
+}
+
+function dragended(d) {
+  if (!d3.event.active) {
+    simulation.alphaTarget(0);
+  }
+  d.fx = null;
+  d.fy = null;
+}
+
+var SHOW_LINKS = {
+  "major": true,
+  "minor": true,
+  "passive": true,
+};
+var COMPLETE_LEGEND = false;
+
+function hoverstarted(d) {
+  let node = d;
+  d3.select(d.__label__).style("visibility", "visible");
+  LINKS.style(
+    "visibility",
+    d => (
+      (d.source === node || d.target === node)
+      ? "visible"
+      : "hidden"
+    )
+  )
+}
+
+function hoverended(d) {
+  if (SELECTED_NODES.size > 0) {
+    LINKS.style(
+      "visibility",
+      d => (
+        SELECTED_NODES.has(d.source.id)
+     || SELECTED_NODES.has(d.target.id)
+      ) ? "visible" : "hidden"
+    );
+  } else {
+    LINKS.style(
+      "visibility",
+      d => SHOW_LINKS[link_class(d)] ? "visible" : "hidden"
+    )
+  }
+  d3.select(d.__label__).style("visibility", "hidden");
+}
+
+var SELECTED_NODES = new Set();
+var SELECTION_ORDER = [];
+
+function remove_array_item(arr, item) {
+  for (let i = 0; i < arr.length; ++i) {
+    if (arr[i] === item) {
+      arr.splice(i, 1);
+      i -= 1;
+    }
+  }
+}
+
+function clear_selection() {
+  let sel = [];
+  for (let id of SELECTION_ORDER) {
+    sel.push(lookup_node(id));
+  }
+  for (let node of sel) {
+    toggle_select(node, false);
+  }
+}
+
+function toggle_select(node, on) {
+  if (on) {
+    if (GRAPH_TYPE == "ego") {
+      clear_selection();
+    } else {
+      remove_array_item(SELECTION_ORDER, node.id); // just in case
+    }
+    node.__selected__ = true;
+    SELECTED_NODES.add(node.id);
+    SELECTION_ORDER.push(node.id);
+    if (NODES) {
+      NODES.classed("selected", d => SELECTED_NODES.has(d.id));
+    }
+    if (EGO_NODES) {
+      EGO_NODES.classed("selected", d => SELECTED_NODES.has(d.id));
+    }
+    if (AFFINITY_NODES) {
+      AFFINITY_NODES.classed("selected", d => SELECTED_NODES.has(d.id));
+    }
+    CHARACTERS.classed("selected", d => SELECTED_NODES.has(d.id));
+    LINKS.style(
+      "visibility",
+      d => (
+        SELECTED_NODES.has(d.source.id)
+     || SELECTED_NODES.has(d.target.id)
+      ) ? "visible" : "hidden"
+    );
+    if (node.id == EGO_CURRENT) {
+      d3.select("#eg_reselect").node().disabled = true;
+    } else {
+      d3.select("#eg_reselect").node().disabled = false;
+    }
+    d3.select("#eg_next").text(node.id);
+  } else {
+    node.__selected__ = false;
+    SELECTED_NODES.delete(node.id);
+    remove_array_item(SELECTION_ORDER, node.id);
+    if (NODES) {
+      NODES.classed("selected", d => SELECTED_NODES.has(d.id));
+    }
+    if (EGO_NODES) {
+      EGO_NODES.classed("selected", d => SELECTED_NODES.has(d.id));
+    }
+    if (AFFINITY_NODES) {
+      AFFINITY_NODES.classed("selected", d => SELECTED_NODES.has(d.id));
+    }
+    CHARACTERS.classed("selected", d => SELECTED_NODES.has(d.id));
+    if (SELECTED_NODES.size == 0) {
+      LINKS.style(
+        "visibility",
+        d => SHOW_LINKS[link_class(d)] ? "visible" : "hidden"
+      );
+    } else {
+      LINKS.style(
+        "visibility",
+        d => (
+          SELECTED_NODES.has(d.source.id)
+       || SELECTED_NODES.has(d.target.id)
+        ) ? "visible" : "hidden"
+      );
+    }
+    if (SELECTED_NODES.size == 0) {
+      d3.select("#eg_reselect").node().disabled = true;
+      d3.select("#eg_next").text("");
+    }
+  }
+  let sel = {
+    "initiated": new Set(),
+    "received": new Set()
+  };
+  let sel_data = NODES.data().filter(d => SELECTED_NODES.has(d.id));
+  for (let d of sel_data) {
+    sel.initiated.add(d.initiated);
+    sel.received.add(d.received);
+  }
+  BARS_GROUP.selectAll("rect.bar.initiated")
+    .classed("selected", d => sel.initiated.has(d[0]));
+  BARS_GROUP.selectAll("rect.bar.received")
+    .classed("selected", d => sel.received.has(d[0]));
+}
+
+function toggle_legend_names(on) {
+  COMPLETE_LEGEND = on;
+  NODES.selectAll(".legend_label")
+    .style("visibility", on ? "visible" : "hidden");
+}
+
+function toggle_link_visibility(cls, on) {
+  SHOW_LINKS[cls] = on;
+  LINKS_GROUP.selectAll("." + cls)
+    .style("visibility", on ? "visible" : "hidden");
+}
+
+function toggle_node_filter(on) {
+  if (!GRAPH) {
+    return;
+  }
+  if (on) {
+    let nodes = [];
+    let links = [];
+    for (let node of GRAPH.nodes) {
+      if (node.group >= 2) {
+        nodes.push(node);
+      }
+    }
+    for (let link of GRAPH.links) {
+      if (link.source.group >= 2 && link.target.group >= 2) {
+        links.push(link);
+      }
+    }
+    set_nodes_and_links(nodes, links);
+    set_bars(nodes);
+  } else {
+    set_nodes_and_links(GRAPH.nodes, GRAPH.links);
+    set_bars(GRAPH.nodes);
+  }
+
+  let n = simulation.nodes().length;
+  if (BEST_ENERGIES[n] == undefined) {
+    document.getElementById("best_energy").innerHTML = "?";
+  } else {
+    document.getElementById("best_energy").innerHTML = (
+      BEST_ENERGIES[n].toExponential(3)
+    );
+  }
+
+  shuffle();
+}
+
+COLLAPSE_HISTOGRAMS = true;
+
+function toggle_hist_collapse(on) {
+  COLLAPSE_HISTOGRAMS = on;
+  set_bars(GRAPH.nodes);
+}
+
+function sort_characters(sort_by) {
+  let nodes = CHARLIST.selectAll("div").data();
+  let sorted_nodes = [...nodes].sort(
+    function(a, b) {
+      if (sort_by == "category") {
+        return (
+          d3.descending(a.group, b.group)
+       || d3.ascending(a.id, b.id)
+        );
+      } else if (sort_by == "name") {
+        return (
+          d3.ascending(a.id, b.id)
+       || d3.descending(a.initiated + a.received, b.initiated + b.received)
+        );
+      } else if (sort_by == "initiated") {
+        return (
+          d3.descending(a.initiated, b.initiated)
+       || d3.descending(a.received, b.received)
+       || d3.ascending(a.id, b.id)
+        );
+      } else if (sort_by == "received") {
+        return (
+          d3.descending(a.received, b.received)
+       || d3.descending(a.initiated, b.initiated)
+       || d3.ascending(a.id, b.id)
+        );
+      } else if (sort_by == "total") {
+        return (
+          d3.descending(a.initiated + a.received, b.initiated + b.received)
+       || d3.descending(a.initiated, b.initiated)
+       || d3.ascending(a.id, b.id)
+        );
+      } else {
+        console.warn("Invalid sort scheme: '" + sort_by + "'; defaulting.")
+        return d3.ascending(a.id, b.id);
+      }
+    }
+  );
+  CHARLIST.selectAll("div").remove();
+  CHARACTERS = CHARLIST.selectAll("div")
+    .data(sorted_nodes)
+    .enter().append("div")
+
+  CHARACTERS
+    .classed("character", true)
+    .classed("selected", d => SELECTED_NODES.has(d.id));
+
+  var char_symbols = CHARACTERS.append("span")
+    .classed("symbol", true)
+    .text(function (d) { return symbol_for(d); });
+  var char_labels = CHARACTERS.append("a")
+    .text(function (d) { return d.id; })
+    .attr("href", "#")
+    .style("color", function(d) { return CAT_COLORS(d.group); })
+    .on("click", d => toggle_select(d, !d.__selected__));
+
+  CHARACTERS.append("span")
+    .classed("stats", true)
+    .text(function(d) { return "🗣" + d.initiated; })
+
+  CHARACTERS.append("span")
+    .classed("stats", true)
+    .text(function(d) { return "👂" + d.received; })
+
+  CHARACTERS.append("span")
+    .classed("stats", true)
+    .text(function(d) { return "→" + (d.initiated + d.received); });
+    //.text(function(d) { console.log(d); return "→" + (d.initiated + d.received + d.subject + d.present); });
+}
+
+function filter_characters(string) {
+  CHARACTERS.style("display", function (d) {
+    if (d.id.toLowerCase().includes(string.toLowerCase())) {
+      return "grid";
+    } else {
+      return "none";
+    }
+  });
+}
+
+// In-line graph data
+inline_data = undefined;
+
+// Finally, load the data file or use the in-line data:
+if (inline_data) {
+  receive_data(inline_data);
+} else {
+  d3.json(
+    //"miserables.json",
+    "cleves-graph.json",
+    function(error, graph) {
+      if (error) throw error;
+      receive_data(graph)
+    }
+  );
+}
+
+    </script>
+  </body>
+</html>

@@ -1,0 +1,4 @@
+data/*.tsv
+data/*-graph.json
+out/*-bundle.html
+lists/

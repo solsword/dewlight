@@ -1,0 +1,11 @@
+initiator	recipient	note
+α	β	before (just to show you can have extra fields)
+β	ξ	before
+ξ	δ	before
+δ	ε	before
+α	a	becomes
+β	b	becomes
+a	b	before
+b	a	after
+a	α	came from
+b	β	came from
