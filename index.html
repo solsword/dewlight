@@ -301,12 +301,17 @@ text {
         <input
          type="button"
          value="close layout"
-         onclick="impose_hive_layout(SIMULATION, 8)">
+         onclick="impose_hive_layout(SIMULATION, SMALL_ALPHA_FACTOR)">
         |
         <input
          type="button"
          value="loose layout"
-         onclick="impose_hive_layout(SIMULATION, 64)">
+         onclick="impose_hive_layout(SIMULATION, LARGE_ALPHA_FACTOR)">
+        |
+        <input
+         type="button"
+         value="relax further"
+         onclick="SIMULATION.alpha(0.25).restart()">
         <br/>
         
         <!--
@@ -415,6 +420,9 @@ const LARGE_GRAPH_WIDTH = 1200;
 const LARGE_GRAPH_HEIGHT = 1200;
 const SMALL_GRAPH_WIDTH = 500;
 const SMALL_GRAPH_HEIGHT = 500;
+
+const SMALL_ALPHA_FACTOR = 12;
+const LARGE_ALPHA_FACTOR = 64;
 
 var HIST = d3.select("#histogram");
 var HIST_CONTROLS = d3.select("#hs_controls");
@@ -1647,7 +1655,7 @@ function set_nodes_and_links(nodes, links) {
   //SIMULATION.alpha(1).restart();
 
   // Impose loose hive layout:
-  impose_hive_layout(SIMULATION, 64);
+  impose_hive_layout(SIMULATION, LARGE_ALPHA_FACTOR);
 }
 
 BAR_TYPE = "initiated";
@@ -2517,7 +2525,7 @@ function receive_data(graph) {
 
 function dragstarted(d) {
   if (!d3.event.active) {
-    SIMULATION.alphaTarget(0.3).restart();
+    SIMULATION.alphaTarget(0.2).restart();
   }
   d.fx = d.x;
   d.fy = d.y;

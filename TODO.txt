@@ -26,3 +26,5 @@
            according to the strength of connection with each of those nodes.
            The spot that has the minimum score is chosen, breaking ties towards
            the origin, and double-ties towards the bottom right.
+[ ] Fix into-the-sunset bug w/ unconnected nodes
+[ ] Loose layout should be looser: force # of ticks at moderate alpha & restart
