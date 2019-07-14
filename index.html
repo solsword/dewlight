@@ -33,19 +33,26 @@ h1 {
   box-sizing: border-box;
   margin: 6pt;
   overflow: scroll;
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  align-items: center;
 }
 
 .graph {
-  width: 100%;
-  height: 100%;
+  width: 500px;
+  height: 500px;
   display: none; /* Hide all graphs */
 }
 
 #force_directed {
-  width: 200%;
-  height: 200%;
-  display: block; /* Show force-directed to start (code depends on this!) */
-  /* TODO: Can it not? */
+  width: 1200px; /* User can scroll to see all of it */
+  height: 1200px;
+}
+
+#histogram { /* Doesn't want standard sizing */
+  width: 100%;
+  height: 100%;
 }
 
 #controls {
@@ -133,7 +140,6 @@ a:link,a:visited {
 }
 
 .nodes circle {
-  r: 11;
   stroke: #fff;
   stroke-width: 1.5pt;
 }
@@ -144,7 +150,7 @@ a:link,a:visited {
 
 text.symbol {
   text-anchor: middle;
-  alignment-baseline: central;
+  dominant-baseline: central;
   font-size: 19px;
   cursor: crosshair;
   fill: black;
@@ -174,7 +180,6 @@ text.symbol {
 }
 
 .diredge-bubble {
-  r: 9;
   stroke: white;
   fill: #999;
   stroke-width: 1.5pt;
@@ -182,7 +187,7 @@ text.symbol {
 
 .diredge-label {
   text-anchor: middle;
-  alignment-baseline: central;
+  dominant-baseline: central;
   font-size: 19px;
   fill: black;
   stroke: white;
@@ -225,6 +230,10 @@ rect.bar.selected {
 text {
   font-family: serif;
   font-size: 14pt;
+}
+
+#opt_spinner {
+  display: none;
 }
 
     </style>
@@ -274,7 +283,8 @@ text {
         <input
          type="button"
          value="find optimum"
-         onclick="mega_shuffle()">
+         onclick="optimize_randomly()">
+        <img id="opt_spinner" src="res/loading.gif" alt="loading animation">
         |
         <input
          type="button"
@@ -382,11 +392,10 @@ text {
 
 var FDG = d3.select("#force_directed");
 var FDG_CONTROLS = d3.select("#fd_controls");
-var FDG_WIDTH = +FDG.node().getBoundingClientRect().width;
-var FDG_HEIGHT = +FDG.node().getBoundingClientRect().height;
-// Scroll to middle
-FDG.node().parentNode.scrollTop = FDG_HEIGHT/4;
-FDG.node().parentNode.scrollLeft = FDG_WIDTH/4;
+const LARGE_GRAPH_WIDTH = 1200;
+const LARGE_GRAPH_HEIGHT = 1200;
+const SMALL_GRAPH_WIDTH = 500;
+const SMALL_GRAPH_HEIGHT = 500;
 
 var HIST = d3.select("#histogram");
 var HIST_CONTROLS = d3.select("#hs_controls");
@@ -689,10 +698,25 @@ function select_graph(type) {
   d3.selectAll(".graph_controls").style("display", "none");
   d3.select("#" + controls).style("display", "block");
 
+  let viewport = d3.select("#graphs").node();
+  let brect = viewport.getBoundingClientRect();
+  let vp_width = +brect.width;
+  let vp_height = +brect.height;
   // Scroll to middle if it's the force-directed graph:
   if (target == "force_directed") {
-    FDG.node().parentNode.scrollTop = FDG_HEIGHT/4;
-    FDG.node().parentNode.scrollLeft = FDG_WIDTH/4;
+    if (LARGE_GRAPH_WIDTH > vp_width) {
+      viewport.scrollLeft = LARGE_GRAPH_WIDTH/2 - vp_width/2;
+    }
+    if (LARGE_GRAPH_HEIGHT > vp_height) {
+      viewport.scrollTop = LARGE_GRAPH_HEIGHT/2 - vp_height/2;
+    }
+  } else {
+    if (SMALL_GRAPH_WIDTH > vp_width) {
+      viewport.scrollLeft = SMALL_GRAPH_WIDTH/2 - vp_width/2;
+    }
+    if (SMALL_GRAPH_HEIGHT > vp_height) {
+      viewport.scrollTop = SMALL_GRAPH_HEIGHT/2 - vp_height/2;
+    }
   }
 
   // Actually (re)create the graph:
@@ -878,19 +902,19 @@ separation_force = d3.forceManyBody()
   .distanceMax(50);
 
 bubble_force = forceBubble()
-  .target([FDG_WIDTH/2, FDG_HEIGHT/2])
+  .target([LARGE_GRAPH_WIDTH/2, LARGE_GRAPH_HEIGHT/2])
   .radius(d => d.group == 0 ? 240 : 160)
   .strength(d => d.group >= 2 ? 0 : 0.4);
 
 gather_force = forceBubble()
-  .target([FDG_WIDTH/2, FDG_HEIGHT/2])
+  .target([LARGE_GRAPH_WIDTH/2, LARGE_GRAPH_HEIGHT/2])
   .radius(0)
-  .strength(0.1);
+  .strength(2);
 
 var simulation = d3.forceSimulation()
   .force("link", link_forces)
   .force("charge", separation_force)
-  .force("center", d3.forceCenter(FDG_WIDTH / 2, FDG_HEIGHT / 2))
+  .force("center", d3.forceCenter(LARGE_GRAPH_WIDTH/2, LARGE_GRAPH_HEIGHT/2))
   .force("bubble", bubble_force)
   .force("gather", gather_force);
 
@@ -1029,7 +1053,22 @@ function optimize_positions(simulation) {
   simulation.alpha(1).restart();
 }
 
+function optimize_randomly() {
+  // Calls mega_shuffle, but also shows a spinner while that's going on.
+  // Reveal activity gif:
+  let spinner = document.getElementById("opt_spinner");
+  spinner.style.display = "inline";
+
+  window.requestAnimationFrame(
+    function() { window.requestAnimationFrame(mega_shuffle); }
+  );
+}
+
 function mega_shuffle() {
+  // Shuffles 50 times and records the best configuration found, setting the
+  // nodes into that configuration (approximately) at the end.
+
+  // Run simulations:
   best = undefined;
   best_starts = undefined;
   for (let i = 0; i < 50; ++i) { // 50 trials
@@ -1053,7 +1092,12 @@ function mega_shuffle() {
   // Set node positions to best positions found:
   optimize_positions(simulation);
 
+  // Restart simulation one more time:
   simulation.alpha(1).restart();
+
+  // Hide spinner
+  let spinner = document.getElementById("opt_spinner");
+  spinner.style.display = "none";
 }
 
 var GRAPH = null;
@@ -1159,6 +1203,7 @@ function set_nodes_and_links(nodes, links) {
   // Add circles last so they sit on top of edges:  
   var circles = NODES.append("circle")
     .attr("fill", function(d) { return CAT_COLORS(d.group); })
+    .attr("r", 11)
     .style("cursor", "crosshair")
     .on("mouseover", hoverstarted)
     .on("mouseout", hoverended)
@@ -1216,7 +1261,9 @@ function set_nodes_and_links(nodes, links) {
     .classed("label", true)
     .attr(
       'transform',
-      "translate(" + (FDG_WIDTH/4 + 12) + "," + (FDG_HEIGHT/4 + 24) + ")"
+      "translate("
+    + (LARGE_GRAPH_WIDTH/4 + 12) + ","
+    + (LARGE_GRAPH_HEIGHT/4 + 24) + ")"
     )
     .style('visibility', "hidden")
     .each(function(d) { d.__label__ = this; });
@@ -1339,7 +1386,7 @@ function set_bars(data, plot) {
     "initiated": new Set(),
     "received": new Set()
   };
-  let sel_data = NODES.data().filter(d => SELECTED_NODES.has(d.id));
+  let sel_data = data.filter(d => SELECTED_NODES.has(d.id));
   for (let d of sel_data) {
     sel.initiated.add(d.initiated);
     sel.received.add(d.received);
@@ -1459,7 +1506,7 @@ function set_bars(data, plot) {
   BARS_GROUP.selectAll("text").remove();
 
   let names = [];
-  let nd = [...NODES.data()];
+  let nd = [...data];
   nd.sort((a, b) => d3.ascending(a.id, b.id));
   if (plot == "combined") {
     nd.forEach(
@@ -1498,11 +1545,11 @@ function set_bars(data, plot) {
   if (plot == "combined") {
     ticks
       .attr('y', (hist_height/2))
-      .style("alignment-baseline", "central");
+      .style("dominant-baseline", "central");
   } else {
     ticks
       .attr('y', hist_height - 20)
-      .style("alignment-baseline", "hanging");
+      .style("dominant-baseline", "hanging");
   }
 
   let labels = BARS_GROUP.selectAll("text.label.above")
@@ -1528,7 +1575,7 @@ function set_bars(data, plot) {
         d => bar_height(d[1][0]) > ll ? bar_top(d[1]) + lp: bar_top(d[1]) - lp
       )
       .style(
-        "alignment-baseline",
+        "dominant-baseline",
         d => bar_height(d[1][0]) > ll ? "hanging": "baseline"
       );
   } else {
@@ -1542,7 +1589,7 @@ function set_bars(data, plot) {
         d => bar_height(d[1]) > ll ? bar_top(d[1]) + lp: bar_top(d[1]) - lp
       )
       .style(
-        "alignment-baseline",
+        "dominant-baseline",
         d => bar_height(d[1]) > ll ? "hanging": "baseline"
       );
   }
@@ -1576,7 +1623,7 @@ function set_bars(data, plot) {
       );
 
     let bot_names = [];
-    let nd = [...NODES.data()];
+    let nd = [...data];
     nd.sort((a, b) => d3.ascending(a.id, b.id));
     nd.forEach(
       function(d) {
@@ -1607,13 +1654,13 @@ function set_bars(data, plot) {
           d => bar_height(d[1][1]) > ll ? bar_bot(d[1]) - lp: bar_bot(d[1]) + lp
         )
         .style(
-          "alignment-baseline",
+          "dominant-baseline",
           d => bar_height(d[1][1]) > ll ? "baseline": "hanging"
         );
   }
 
   // overflow-x on #graphs + this = scroll
-  d3.select("#histogram").style('width', 30 + bar_width * hbars.length);
+  d3.select("#histogram").style('width', (30 + bar_width * hbars.length)+"px");
 }
 
 function lookup_node(id) {
@@ -1951,6 +1998,7 @@ function set_ego(nodes, dlinks) {
 
   var circles = EGO_NODES.append("circle")
     .attr("fill", function(d) { return CAT_COLORS(d.group); })
+    .attr("r", 11)
     .style("cursor", "crosshair")
     .on("mouseover", hoverstarted)
     .on("mouseout", hoverended)
@@ -1995,6 +2043,7 @@ function set_ego(nodes, dlinks) {
   /*
   var edge_bubbles = edges.append("circle")
     .classed("diredge-bubble", true)
+    .attr("r", 9)
     .attr("cx", d => dir_edge_points(d, x => x.__ego_node__).xe)
     .attr("cy", d => dir_edge_points(d, x => x.__ego_node__).ye);
   */
@@ -2297,14 +2346,18 @@ function toggle_select(node, on) {
     if (AFFINITY_NODES) {
       AFFINITY_NODES.classed("selected", d => SELECTED_NODES.has(d.id));
     }
-    LISTINGS.classed("selected", d => SELECTED_NODES.has(d.id));
-    LINKS.style(
-      "visibility",
-      d => (
-        SELECTED_NODES.has(d.source.id)
-     || SELECTED_NODES.has(d.target.id)
-      ) ? "visible" : "hidden"
-    );
+    if (LISTINGS) {
+      LISTINGS.classed("selected", d => SELECTED_NODES.has(d.id));
+    }
+    if (LINKS) {
+      LINKS.style(
+        "visibility",
+        d => (
+          SELECTED_NODES.has(d.source.id)
+       || SELECTED_NODES.has(d.target.id)
+        ) ? "visible" : "hidden"
+      );
+    }
     if (node.id == EGO_CURRENT) {
       d3.select("#eg_reselect").node().disabled = true;
     } else {
@@ -2324,20 +2377,24 @@ function toggle_select(node, on) {
     if (AFFINITY_NODES) {
       AFFINITY_NODES.classed("selected", d => SELECTED_NODES.has(d.id));
     }
-    LISTINGS.classed("selected", d => SELECTED_NODES.has(d.id));
-    if (SELECTED_NODES.size == 0) {
-      LINKS.style(
-        "visibility",
-        d => SHOW_LINKS[link_class(d)] ? "visible" : "hidden"
-      );
-    } else {
-      LINKS.style(
-        "visibility",
-        d => (
-          SELECTED_NODES.has(d.source.id)
-       || SELECTED_NODES.has(d.target.id)
-        ) ? "visible" : "hidden"
-      );
+    if (LISTINGS) {
+      LISTINGS.classed("selected", d => SELECTED_NODES.has(d.id));
+    }
+    if (LINKS) {
+      if (SELECTED_NODES.size == 0) {
+        LINKS.style(
+          "visibility",
+          d => SHOW_LINKS[link_class(d)] ? "visible" : "hidden"
+        );
+      } else {
+        LINKS.style(
+          "visibility",
+          d => (
+            SELECTED_NODES.has(d.source.id)
+         || SELECTED_NODES.has(d.target.id)
+          ) ? "visible" : "hidden"
+        );
+      }
     }
     if (
       SELECTED_NODES.size == 0
@@ -2358,10 +2415,12 @@ function toggle_select(node, on) {
     "initiated": new Set(),
     "received": new Set()
   };
-  let sel_data = NODES.data().filter(d => SELECTED_NODES.has(d.id));
-  for (let d of sel_data) {
-    sel.initiated.add(d.initiated);
-    sel.received.add(d.received);
+  if (NODES) {
+    let sel_data = NODES.data().filter(d => SELECTED_NODES.has(d.id));
+    for (let d of sel_data) {
+      sel.initiated.add(d.initiated);
+      sel.received.add(d.received);
+    }
   }
   BARS_GROUP.selectAll("rect.bar.initiated")
     .classed("selected", d => sel.initiated.has(d[0]));
