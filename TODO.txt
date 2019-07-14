@@ -13,8 +13,8 @@
 [ ] Affinity graphs
 [ ] Scatter plots
 [ ] Writeup of how the graph layout works
-[ ] Static layout algorithms:
-    [ ] Honeycomb:
+[X] Static layout algorithms:
+    [X] Honeycomb:
         1. Start by putting the character w/ the most interactions at the origin
         2. At each step, pick the character who has the most interactions summed
            across already-placed characters to pick next.

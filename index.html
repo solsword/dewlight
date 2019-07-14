@@ -275,6 +275,7 @@ text {
         filter nodes
         <br/>
 
+        <!--
         <input
          type="button"
          value="shuffle"
@@ -289,12 +290,30 @@ text {
         <input
          type="button"
          value="optimize"
-         onclick="optimize_positions(simulation)">
+         onclick="optimize_positions(SIMULATION)">
+        |
+        -->
+        <input
+         type="button"
+         value="strict layout"
+         onclick="impose_hive_layout(SIMULATION, undefined)">
+        |
+        <input
+         type="button"
+         value="close layout"
+         onclick="impose_hive_layout(SIMULATION, 8)">
+        |
+        <input
+         type="button"
+         value="loose layout"
+         onclick="impose_hive_layout(SIMULATION, 64)">
         <br/>
         
+        <!--
         energy: <span id="energy">?</span>
         | best: <span id="best_energy">?</span>
         <br/>
+        -->
       </div>
 
       <div id="hs_controls" class="graph_controls">
@@ -731,7 +750,7 @@ function select_graph(type) {
   } else if (type == "ego") {
     set_ego(GRAPH.nodes, GRAPH.dlinks);
   } else if (type == "pair") {
-    set_pair(GRAPH.nodes, GRAPH.dlinks);
+    set_affinity(GRAPH.nodes, GRAPH.dlinks);
   } else {
     // Error messages was already generated above
     set_nodes_and_links(graph.nodes, graph.links);
@@ -911,7 +930,7 @@ gather_force = forceBubble()
   .radius(0)
   .strength(2);
 
-var simulation = d3.forceSimulation()
+var SIMULATION = d3.forceSimulation()
   .force("link", link_forces)
   .force("charge", separation_force)
   .force("center", d3.forceCenter(LARGE_GRAPH_WIDTH/2, LARGE_GRAPH_HEIGHT/2))
@@ -919,11 +938,11 @@ var simulation = d3.forceSimulation()
   .force("gather", gather_force);
 
 function shuffle() {
-  simulation.nodes().forEach(function (n) {
+  SIMULATION.nodes().forEach(function (n) {
     n.x = Math.random()*240;
     n.y = Math.random()*240;
   });
-  simulation.alpha(1).restart();
+  SIMULATION.alpha(1).restart();
 }
 
 function distance(x1, y1, x2, y2) {
@@ -947,7 +966,10 @@ function compute_vel_energy(simulation, dont_track) {
     let n = simulation.nodes().length;
     if (BEST_ENERGIES[n] == undefined || e < BEST_ENERGIES[n]) {
       BEST_ENERGIES[n] = e;
-      document.getElementById("best_energy").innerHTML = e.toExponential(3);
+      let bespan = document.getElementById("best_energy");
+      if (bespan != null) {
+        bespan.innerHTML = e.toExponential(3);
+      }
       BEST_POSITIONS[n] = [];
       for (let node of simulation.nodes()) {
         BEST_POSITIONS[n].push([node.x, node.y]);
@@ -993,7 +1015,10 @@ function compute_pull_energy(simulation, dont_track) {
     let n = simulation.nodes().length;
     if (BEST_ENERGIES[n] == undefined || e < BEST_ENERGIES[n]) {
       BEST_ENERGIES[n] = e;
-      document.getElementById("best_energy").innerHTML = e.toExponential(3);
+      let bespan = document.getElementById("best_energy");
+      if (bespan != null) {
+        bespan.innerHTML = e.toExponential(3);
+      }
       BEST_POSITIONS[n] = [];
       for (let node of simulation.nodes()) {
         BEST_POSITIONS[n].push([node.x, node.y]);
@@ -1021,7 +1046,10 @@ function compute_stretch_energy(simulation, dont_track) {
     let n = simulation.nodes().length;
     if (BEST_ENERGIES[n] == undefined || e < BEST_ENERGIES[n]) {
       BEST_ENERGIES[n] = e;
-      document.getElementById("best_energy").innerHTML = e.toExponential(3);
+      let bespan = document.getElementById("best_energy");
+      if (bespan != null) {
+        bespan.innerHTML = e.toExponential(3);
+      }
       BEST_POSITIONS[n] = [];
       for (let node of simulation.nodes()) {
         BEST_POSITIONS[n].push([node.x, node.y]);
@@ -1059,6 +1087,7 @@ function optimize_randomly() {
   let spinner = document.getElementById("opt_spinner");
   spinner.style.display = "inline";
 
+  // Fire in two frames to allow GIF to load:
   window.requestAnimationFrame(
     function() { window.requestAnimationFrame(mega_shuffle); }
   );
@@ -1072,32 +1101,300 @@ function mega_shuffle() {
   best = undefined;
   best_starts = undefined;
   for (let i = 0; i < 50; ++i) { // 50 trials
-    simulation.alpha(1); // reset alpha to 1
-    simulation.nodes().forEach(function (n) {
+    SIMULATION.alpha(1); // reset alpha to 1
+    SIMULATION.nodes().forEach(function (n) {
       n.x = Math.random()*20;
       n.y = Math.random()*20;
     });
     for (let j = 0; j < 3; ++j) { // tick and relax in 3 waves:
       for (let k = 0; k < 100; ++k) { // run 100 ticks
-        simulation.tick();
+        SIMULATION.tick();
       }
-      simulation.alpha(1); // reset alpha to 1
+      SIMULATION.alpha(1); // reset alpha to 1
     }
     for (let k = 0; k < 300; ++k) { // run another 300 ticks
-      simulation.tick();
+      SIMULATION.tick();
     }
-    compute_energy(simulation, false); // compute final energy and record it
+    compute_energy(SIMULATION, false); // compute final energy and record it
   }
 
   // Set node positions to best positions found:
-  optimize_positions(simulation);
+  optimize_positions(SIMULATION);
 
   // Restart simulation one more time:
-  simulation.alpha(1).restart();
+  SIMULATION.alpha(1).restart();
 
   // Hide spinner
   let spinner = document.getElementById("opt_spinner");
   spinner.style.display = "none";
+}
+
+function pos__key(pos) { return "" + pos[0] + "," + pos[1]; }
+function key__pos(key) {
+  let a = key.split(',');
+  return [+a[0], +a[1]];
+}
+
+function simplex_neighbors(pos) {
+  // All six neighbors in a simplex grid (horizontal straights; skewed right)
+  return [
+    [ pos[0] - 1, pos[1]],
+    [ pos[0] - 1, pos[1] + 1],
+    [ pos[0], pos[1] + 1],
+    [ pos[0] + 1, pos[1]],
+    [ pos[0] + 1, pos[1] - 1],
+    [ pos[0], pos[1] - 1],
+  ];
+}
+
+// Size of simplex grid:
+const SIMPLEX_GRID_SIZE = 60;
+// skew x and y values:
+const SKX = Math.cos(Math.PI/3);
+const SKY = Math.sin(Math.PI/3);
+
+function simplex_coords(pos) {
+  // Converts integer simplex coords into absolute SVG coordinates
+  return [
+    LARGE_GRAPH_WIDTH/2 + (pos[0] + SKX * pos[1]) * SIMPLEX_GRID_SIZE,
+    LARGE_GRAPH_WIDTH/2 + SKY * pos[1] * SIMPLEX_GRID_SIZE
+  ];
+}
+
+function hive_layout(nodes) {
+  // A layout maps nodes <-> positions and keeps track of an edge
+  let layout = {
+    "positions": {},
+    "occupants": {},
+    "edge": new Set(),
+    "edgeorder": [],
+  };
+  // Add 0, 0 to edge:
+  layout.edge.add(pos__key([0, 0]));
+  layout.edgeorder.push([0, 0]);
+
+  // find first node; prepare to track interactions-with-placed-nodes
+  let interactions = {};
+  // incremental max for picking first node:
+  let highest = 0;
+  // next node for placement:
+  let next = undefined;
+  for (let node of nodes) {
+    let ints = node.initiated + node.received;
+    if (ints >= highest) {
+      highest = ints;
+      next = node;
+    }
+  }
+
+  // Function for updating layout:
+  function assign_pos(node, pos) {
+    // Get position key:
+    let k = pos__key(pos);
+
+    // Set position of node:
+    layout.positions[node.id] = pos;
+
+    // Set occupant of position:
+    if (layout.occupants[k] != undefined) {
+      console.error("Double-assignment at pos: " + pos);
+    }
+    layout.occupants[k] = node;
+
+    // Remove pos from edge set:
+    if (!layout.edge.has(k)) {
+      console.error("Assignment at non-edge: " + pos);
+    }
+    // And remove it from edge order:
+    layout.edge.delete(k);
+    let oidx = 0;
+    for (; oidx < layout.edgeorder.length; ++oidx) {
+      let op = layout.edgeorder[oidx];
+      if (op[0] == pos[0] && op[1] == pos[1]) {
+        break;
+      }
+    }
+    if (oidx == layout.edgeorder.length) {
+      console.error("Failed to find pos in edge order: " + pos);
+    } else {
+      layout.edgeorder.splice(oidx, 1);
+    }
+
+    // Add unoccupied neighbors to edge:
+    for (let nb of simplex_neighbors(pos)) {
+      let nbk = pos__key(nb);
+      if (layout.occupants[nbk] == undefined && !layout.edge.has(nbk)) {
+        layout.edge.add(nbk);
+        layout.edgeorder.push(nb);
+      }
+    }
+
+    // Update interactions of neighbors of placed node:
+    for (let nbid of Object.keys(node.neighborhood)) {
+      let link = lookup_link(node.id, nbid);
+      if (interactions.hasOwnProperty(nbid)) {
+        interactions[nbid] += link.value;
+      } else {
+        interactions[nbid] = link.value;
+      }
+    }
+  }
+
+  function pick_next_node() {
+    // Picks the next node to assign by looking for the node with the most
+    // interactions with nodes that have already been placed. Ties are broken
+    // according to total interactions and then neighborhood size.
+    let best = undefined;
+    let best_any = undefined;
+    let best_neighbors = undefined;
+    let result = undefined;
+
+    function better_candidate(node) {
+      // Favors nodes that have more interactions-with-placed-nodes, then
+      // breaks ties using total-interactions, # of neighbors, and ID values in
+      // that order.
+      let ints = interactions[node.id];
+      let tot = node.initiated + node.received;
+      let nbs = node.neighbors;
+      if (best == undefined || ints > best) {
+        return true;
+      } else if (ints == best) {
+        if (best_any == undefined || tot > best_any) {
+          return true;
+        } else if (tot == best_any) {
+          if (best_neighbors == undefined || nbs > best_neighbors) {
+          } else if (nbs == best_neighbors) {
+            if (result == undefined || d3.descending(node.id, result.id)) {
+              return true;
+            }
+          }
+        }
+      }
+      // fall out: we're not better
+      return false;
+    }
+    for (let nid of Object.keys(interactions)) {
+      // don't pick an already-assigned node:
+      if (layout.positions.hasOwnProperty(nid)) { continue; }
+
+      // check for a new best-so-far:
+      let node = lookup_node(nid);
+      if (better_candidate(node)) {
+        best = interactions[nid];
+        best_any = node.initiated + node.received;
+        best_neighbors = node.neighbors;
+        result = node;
+      } // else move on to next node; this one isn't a new best-so-far
+    }
+
+    if (result == undefined) {
+      // iterate through all nodes, not just those touching nodes seen so far:
+      for (let node of nodes) {
+        // don't pick an already-assigned node:
+        if (layout.positions.hasOwnProperty(node.id)) { continue; }
+
+        // check for a new best-so-far:
+        if (better_candidate(node)) {
+          best = interactions[node.id];
+          best_any = node.initiated + node.received;
+          best_neighbors = node.neighbors;
+          result = node;
+        }
+      }
+    }
+
+    return result; // undefined if we're out of nodes
+  }
+
+  function best_position_for(node) {
+    // Picks out the position among edge positions that minimizes the weighted
+    // link lengths between this node and already-positioned nodes.
+
+    // Gather all links with positioned nodes:
+    let links = [];
+    for (let nid of Object.keys(layout.positions)) {
+      let link = lookup_link(node.id, nid);
+      if (link != undefined) {
+        links.push([link, nid]);
+      }
+    }
+
+    // Iterate over edge positions:
+    let best_energy = undefined;
+    let nearest_origin = undefined;
+    let candidate = undefined;
+    for (let pos of layout.edgeorder) {
+      let energy = 0;
+      let abs = simplex_coords(pos);
+      for (let linkto of links) {
+        let link = linkto[0];
+        let oid = linkto[1];
+        let oabs = simplex_coords(layout.positions[oid]);
+        let v = [oabs[0] - abs[0], oabs[1] - abs[1]];
+        let d = Math.sqrt(v[0]*v[0] + v[1]*v[1]);
+        energy += d * link.value;
+      }
+      let origin = simplex_coords([0, 0]);
+      let ov = [origin[0] - abs[0], origin[1] - abs[1]];
+      let od = Math.sqrt(ov[0]*ov[0] + ov[1]*ov[1]);
+      if (best_energy == undefined || energy < best_energy) {
+        best_energy = energy;
+        nearest_origin = od;
+        candidate = pos;
+      } else if (energy == best_energy) { // break ties towards origin
+        if (nearest_origin == undefined || od < nearest_origin) {
+          best_energy = energy;
+          nearest_origin = od;
+          candidate = pos;
+        } // tie-break to earlier candidate by default
+      }
+    }
+    if (candidate == undefined) {
+      console.error("Failed to find best edge position:");
+      console.error(node, layout);
+    }
+
+    return candidate;
+  }
+
+  // Keep assigning nodes to positions until we run out:
+  do {
+    target = best_position_for(next);
+    assign_pos(next, target);
+    next = pick_next_node();
+  } while (next != undefined);
+
+  // Return the final layout:
+  return layout;
+}
+
+function impose_hive_layout(simulation, alpha_factor) {
+  // Alpha factors:
+  //  32 -> 150 ticks
+  //  8 -> 90 ticks
+  //  2 -> 30 ticks
+  let nodes = simulation.nodes();
+  let layout = hive_layout(nodes);
+  for (let node of nodes) {
+    let pos = layout.positions[node.id];
+    if (pos == undefined) {
+      console.warn("Hive layout left node without position:", node, layout);
+    }
+    let abs = simplex_coords(pos);
+    node.x = abs[0];
+    node.y = abs[1];
+    node.vx = 0;
+    node.vy = 0;
+  }
+  if (alpha_factor == undefined) {
+    simulation.alpha(simulation.alphaMin()*2).restart();
+  } else {
+    simulation.alpha(simulation.alphaMin()*alpha_factor).restart();
+  }
+  simulation.tick();
+  if (alpha_factor == undefined) {
+    simulation.alpha(0);
+  }
 }
 
 var GRAPH = null;
@@ -1325,25 +1622,32 @@ function set_nodes_and_links(nodes, links) {
         })
 
     let e = compute_energy(
-        simulation,
-        simulation.alpha() > simulation.alphaMin()
+        SIMULATION,
+        SIMULATION.alpha() > SIMULATION.alphaMin()
     );
 
-    document.getElementById("energy").innerHTML = e.toExponential(3);
+    let espan = document.getElementById("energy");
+    if (espan != null) {
+      espan.innerHTML = e.toExponential(3);
+    }
   }
 
-  simulation
+  SIMULATION
       .nodes(nodes)
       .on("tick", ticked);
 
   // Note: this is where link source/target IDs are replaced with source/target
   // node refs!
-  simulation.force("link")
+  SIMULATION.force("link")
       .links(links);
 
-  simulation.force("bubble").initialize(nodes);
+  SIMULATION.force("bubble").initialize(nodes);
 
-  simulation.alpha(1).restart();
+  // the hive layout takes care of this, but otherwise it would be needed
+  //SIMULATION.alpha(1).restart();
+
+  // Impose loose hive layout:
+  impose_hive_layout(SIMULATION, 64);
 }
 
 BAR_TYPE = "initiated";
@@ -2193,16 +2497,17 @@ function receive_data(graph) {
     }
   );
 
-  // Compute the # of connected nodes (ignoring connection strength) for each
-  // node:
+  // Find the neighborhood of each node:
   for (let node of GRAPH.nodes) {
     node.neighbors = 0;
+    node.neighborhood = {};
     for (let link of GRAPH.links) {
-      if (
-        (link.source === node || link.target === node)
-     && link.source !== link.target
-      ) {
+      if (link.source === node && link.target !== node) {
         node.neighbors += 1;
+        node.neighborhood[link.target.id] = link.target;
+      } else if (link.target === node && link.source !== node) {
+        node.neighbors += 1;
+        node.neighborhood[link.source.id] = link.source;
       }
     }
   }
@@ -2212,7 +2517,7 @@ function receive_data(graph) {
 
 function dragstarted(d) {
   if (!d3.event.active) {
-    simulation.alphaTarget(0.3).restart();
+    SIMULATION.alphaTarget(0.3).restart();
   }
   d.fx = d.x;
   d.fy = d.y;
@@ -2225,7 +2530,7 @@ function dragged(d) {
 
 function dragended(d) {
   if (!d3.event.active) {
-    simulation.alphaTarget(0);
+    SIMULATION.alphaTarget(0);
   }
   d.fx = null;
   d.fy = null;
@@ -2464,16 +2769,15 @@ function toggle_node_filter(on) {
     set_bars(GRAPH.nodes);
   }
 
-  let n = simulation.nodes().length;
-  if (BEST_ENERGIES[n] == undefined) {
-    document.getElementById("best_energy").innerHTML = "?";
-  } else {
-    document.getElementById("best_energy").innerHTML = (
-      BEST_ENERGIES[n].toExponential(3)
-    );
+  let n = SIMULATION.nodes().length;
+  let bespan = document.getElementById("best_energy");
+  if (bespan != null) {
+    if (BEST_ENERGIES[n] == undefined) {
+      bespan.innerHTML = "?";
+    } else {
+      bespan.innerHTML = BEST_ENERGIES[n].toExponential(3);
+    }
   }
-
-  shuffle();
 }
 
 COLLAPSE_HISTOGRAMS = true;
