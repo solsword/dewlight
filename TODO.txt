@@ -1,18 +1,9 @@
 [X] Data inconsistencies (self-links & duplication...)
 [X] Node substitutions during processing
-[ ] Custom categories
 [X] Histogram of # of interactions?
 [X] Character finder
 [X] Ego networks
-[ ] Ego network outer edges
-[ ] Side-by-side
-[ ] Extra relationships
-    [ ] Visualize subjects - Two copies of each node?
-    [ ] Locations? - Bipartite?
 [X] Show both arrows (in ego graphs where there's guaranteed to be space)
-[ ] Affinity graphs
-[ ] Scatter plots
-[ ] Writeup of how the graph layout works
 [X] Static layout algorithms:
     [X] Honeycomb:
         1. Start by putting the character w/ the most interactions at the origin
@@ -26,5 +17,17 @@
            according to the strength of connection with each of those nodes.
            The spot that has the minimum score is chosen, breaking ties towards
            the origin, and double-ties towards the bottom right.
-[ ] Fix into-the-sunset bug w/ unconnected nodes
-[ ] Loose layout should be looser: force # of ticks at moderate alpha & restart
+[~] Fix into-the-sunset bug w/ unconnected nodes (attraction works at least)
+[X] Loose layout should be looser: force # of ticks at moderate alpha & restart
+[X] Affinity graphs
+
+[ ] don't show dlinks in affinity graphs...
+[ ] Scatter plots
+[ ] Writeup of how the graph layout works
+[ ] DOT format
+[ ] Custom categories
+[ ] Ego network outer edges
+[ ] Side-by-side
+[ ] Extra relationships
+    [ ] Visualize subjects - Two copies of each node?
+    [ ] Locations? - Bipartite?

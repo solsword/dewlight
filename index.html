@@ -236,29 +236,43 @@ text {
   display: none;
 }
 
+.nodes_diff.disabled {
+  color: #aaa;
+}
+
     </style>
   </head>
   <body>
     <div id="controls">
       show <select id="graph_select" onchange="select_graph(this.value)">
         <option selected="t" value="force">relationships</option>
-        <option value="histogram-i">histogram (initiated)</option>
-        <option value="histogram-r">histogram (received)</option>
-        <option value="histogram-c">histogram (both)</option>
         <option value="ego">ego network</option>
-        <option value="pair">affinity plot</option>
+        <option value="affinity">affinity plot</option>
+        <option value="histogram">histograms</option>
+      </select>
+      |
+      <input
+       type="checkbox"
+       id="node_filter"
+       onclick="toggle_node_filter(this.checked)">
+      filter nodes
+      <br/>
+
+      <input
+       type="button"
+       value="clear selection"
+       onclick="clear_selection();">
+      |
+      mark <select id="mark_select" onchange="set_symbols(this.value)">
+        <option selected="t" value="important">important nodes</option>
+        <option value="all">all nodes</option>
+        <option value="none">none</option>
       </select>
       <br/>
 
       <div id="fd_controls" class="graph_controls">
         <h1 class="graph_label">All Relationships</h1>
 
-        mark <select id="mark_select" onchange="set_symbols(this.value)">
-          <option selected="t" value="important">important nodes</option>
-          <option value="all">all nodes</option>
-          <option value="none">none</option>
-        </select>
-        |
         hide
         <input
          type="checkbox"
@@ -268,11 +282,6 @@ text {
          type="checkbox"
          onclick="toggle_link_visibility('passive', !this.checked)">
         passive edges
-        |
-        <input
-         type="checkbox"
-         onclick="toggle_node_filter(this.checked)">
-        filter nodes
         <br/>
 
         <!--
@@ -293,25 +302,23 @@ text {
          onclick="optimize_positions(SIMULATION)">
         |
         -->
-        <input
-         type="button"
-         value="strict layout"
-         onclick="impose_hive_layout(SIMULATION, undefined)">
+        layout:
+        <select id="layout_select" onchange="impose_layout(this.value)">
+          <option value="strict">strict</option>
+          <option selected="t" value="loose">loose</option>
+          <option value="relaxed">relaxed</option>
+        </select>
         |
         <input
          type="button"
-         value="close layout"
-         onclick="impose_hive_layout(SIMULATION, SMALL_ALPHA_FACTOR)">
-        |
-        <input
-         type="button"
-         value="loose layout"
-         onclick="impose_hive_layout(SIMULATION, LARGE_ALPHA_FACTOR)">
+         value="reset layout"
+         onclick="impose_layout(document.getElementById('layout_select').value)"
+         >
         |
         <input
          type="button"
          value="relax further"
-         onclick="SIMULATION.alpha(0.25).restart()">
+         onclick="SIMULATION.alpha(MEDIUM_ENERGY).restart()">
         <br/>
         
         <!--
@@ -322,30 +329,56 @@ text {
       </div>
 
       <div id="hs_controls" class="graph_controls">
-        <h1 class="graph_label">Interactions Histogram</h1>
+        <h1 class="graph_label">Histograms</h1>
+
+        graph
+        <select
+         id="which_histogram"
+         onchange="set_bars(GRAPH.nodes);">
+          <option selected="t" value="initiated">initiated</option>
+          <option value="received">received</option>
+          <option value="interactions">initiated+received</option>
+          <option value="neighbors">neighbors</option>
+        </select>
+        |
+        <input
+         type="checkbox"
+         id="double_histogram"
+         checked="true"
+         onclick="set_bars(GRAPH.nodes); document.getElementById('extra_histogram').disabled = !this.checked;">
+        compare
+        <select
+         id="extra_histogram"
+         onchange="set_bars(GRAPH.nodes);">
+          <option value="initiated">initiated</option>
+          <option selected="t" value="received">received</option>
+          <option value="interactions">initiated+received</option>
+          <option value="neighbors">neighbors</option>
+        </select>
+        <br/>
 
         <input
          type="checkbox"
          checked="true"
          onclick="toggle_hist_collapse(this.checked)">
-        collapse histograms
+        collapse values
         <br/>
       </div>
 
       <div id="eg_controls" class="graph_controls">
         <h1 class="graph_label">Ego Network</h1>
-        focus: <span id="eg_name"></span>
+        viewing <span id="eg_name"></span>
         |
         <input
          type="button"
          id="eg_reselect"
          onclick="set_ego(GRAPH.nodes, GRAPH.dlinks)"
-         value="switch to:">
+         value="switch to">
         <span id="eg_next"></span><br/>
 
-        limit neighbors:
+        limit neighbors
         <select id="eg_cutoff" onchange="set_ego(GRAPH.nodes, GRAPH.dlinks)">
-          <option value="none">don't limit</option>
+          <option selected="t" value="none">don't limit</option>
           <option value="3">top 3</option>
           <option value="5">top 5</option>
           <option value="10">top 10</option>
@@ -367,8 +400,45 @@ text {
       </div>
 
       <div id="af_controls" class="graph_controls">
-        <h1 class="graph_label">Single Relationship</h1>
+        <h1 class="graph_label">Affinity Plot</h1>
+        <input
+         type="checkbox"
+         id="show_outside_links"
+         checked="t"
+         onclick="toggle_outside_links(this.checked);"
+         > show outside links
         <br/>
+
+        update outside nodes
+        <input
+         type="button"
+         id="add_outside_nodes"
+         onclick="add_outside_nodes();"
+         value="~"
+         disabled="t"
+         >
+        <input
+         type="button"
+         id="remove_outside_nodes"
+         onclick="remove_outside_nodes();"
+         value="~"
+         disabled="t"
+         >
+        inside nodes
+        <input
+         type="button"
+         id="add_inside_nodes"
+         onclick="add_inside_nodes();"
+         value="~"
+         disabled="t"
+         >
+        <input
+         type="button"
+         id="remove_inside_nodes"
+         onclick="remove_inside_nodes();"
+         value="~"
+         disabled="t"
+         >
       </div>
 
     </div>
@@ -381,15 +451,15 @@ text {
       <svg id="force_directed" class="graph"></svg>
       <svg id="histogram" class="graph"></svg>
       <svg id="ego" class="graph"></svg>
-      <svg id="relationship" class="graph"></svg>
+      <svg id="affinity" class="graph"></svg>
     </div>
     <div id="sidebar">
       <div id="sidebar-controls">
         <h1>Listing:</h1>
         <p>
         sort by
-        <select id="listing_sort" onchange="sort_listings(this.value)"/>
-          <option value="default">default (by graph type)</option>
+        <select id="listing_sort" onchange="update_listings(this.value)"/>
+          <option selected="t" value="default">default (by graph type)</option>
           <option value="category">category (then name)</option>
           <option value="name">name</option>
           <option value="initiated">initiated</option>
@@ -421,8 +491,15 @@ const LARGE_GRAPH_HEIGHT = 1200;
 const SMALL_GRAPH_WIDTH = 500;
 const SMALL_GRAPH_HEIGHT = 500;
 
-const SMALL_ALPHA_FACTOR = 12;
-const LARGE_ALPHA_FACTOR = 64;
+// Alpha factors for resetting the simulation
+const EXTREME_ENERGY = 1;
+const HIGH_ENERGY = 0.5;
+const MEDIUM_ENERGY = 0.25;
+const LOW_ENERGY = 0.05;
+const VERY_LOW_ENERGY = 0.02;
+
+// ticks per period when cooling off the layout
+const COOLOFF_TICKS = 100;
 
 var HIST = d3.select("#histogram");
 var HIST_CONTROLS = d3.select("#hs_controls");
@@ -444,7 +521,9 @@ const SYMBOL_FONT_SIZE = 16;
 var CAT_COLORS = d3.scaleOrdinal(d3.schemeCategory10);
 var HCOLORS = {
   "initiated": "#f40083",
-  "received": "#8300f4"
+  "received": "#8300f4",
+  "interactions": "#970097",
+  "neighbors": "#0085f4"
 };
 
 var SYMBOL_LISTS = {
@@ -749,15 +828,11 @@ function select_graph(type) {
   // Actually (re)create the graph:
   if (type == "force") {
     set_nodes_and_links(GRAPH.nodes, GRAPH.links);
-  } else if (type == "histogram-i") {
-    set_bars(GRAPH.nodes, "initiated");
-  } else if (type == "histogram-r") {
-    set_bars(GRAPH.nodes, "received");
-  } else if (type == "histogram-c") {
-    set_bars(GRAPH.nodes, "combined");
+  } else if (type == "histogram") {
+    set_bars(GRAPH.nodes);
   } else if (type == "ego") {
     set_ego(GRAPH.nodes, GRAPH.dlinks);
-  } else if (type == "pair") {
+  } else if (type == "affinity") {
     set_affinity(GRAPH.nodes, GRAPH.dlinks);
   } else {
     // Error messages was already generated above
@@ -766,10 +841,13 @@ function select_graph(type) {
 
   // Setup legend:
   set_legend(type);
+
+  // Enfoce link visibility
+  set_link_visibility();
 }
 
 function set_legend(type) {
-  if (type == "force" || type == "ego") {
+  if (type == "force" || type == "ego" || type == "affinity") {
     let in_use = [];
     for (let node of GRAPH.nodes) {
       if (in_use.indexOf(node.group) < 0) {
@@ -791,11 +869,7 @@ function set_legend(type) {
       .style("background-color", (d, i) => CAT_COLORS(i));
 
     legend_entry.append("span").text(d => d);
-  } else if (
-    type == "histogram-i"
- || type == "histogram-r"
- || type == "histogram-c"
-  ) {
+  } else if (type == "histogram") {
     var legend = d3.select("#legend_entries");
     legend.selectAll("div").remove();
     var legend_entry = legend.selectAll("div")
@@ -826,9 +900,14 @@ function forceBubble(target, radius, strength) {
       strength = strengths[i];
       let d = distance(node.x, node.y, target[0], target[1]);
       if (d < radius) {
-        let str = Math.pow(1 - d/radius, 1/3);
-        node.vx += (node.x - target[0]) * str * strength * alpha;
-        node.vy += (node.y - target[1]) * str * strength * alpha;
+        let fr = d/radius;
+        let str = strength * Math.pow(1 - fr, 1/3);
+        node.vx += (node.x - target[0]) * str * alpha;
+        node.vy += (node.y - target[1]) * str * alpha;
+      } else if (radius == 0) {
+        // special case radius = 0 will attract w/ constant force
+        node.vx += (target[0] - node.x) * strength * alpha;
+        node.vy += (target[1] - node.y) * strength * alpha;
       } // otehrwise no effect
     }
   }
@@ -916,6 +995,7 @@ function link_distance(link) {
 }
 
 function link_strength(link) {
+  // TODO: Make this (more) graph-agnostic?
   return (0.1 + 0.8 * (Math.log(link.value) / 6))/5;
 }
 
@@ -936,7 +1016,7 @@ bubble_force = forceBubble()
 gather_force = forceBubble()
   .target([LARGE_GRAPH_WIDTH/2, LARGE_GRAPH_HEIGHT/2])
   .radius(0)
-  .strength(2);
+  .strength(0.025);
 
 var SIMULATION = d3.forceSimulation()
   .force("link", link_forces)
@@ -1172,14 +1252,14 @@ function simplex_coords(pos) {
 function hive_layout(nodes) {
   // A layout maps nodes <-> positions and keeps track of an edge
   let layout = {
-    "positions": {},
-    "occupants": {},
-    "edge": new Set(),
-    "edgeorder": [],
+    "positions": {}, // position of each node (by ID)
+    "occupants": {}, // node at each position (by position key)
+    "edge": new Set(), // set of edge positions (keys)
+    "edge_order": [], // list of edge positions (positions)
   };
   // Add 0, 0 to edge:
   layout.edge.add(pos__key([0, 0]));
-  layout.edgeorder.push([0, 0]);
+  layout.edge_order.push([0, 0]);
 
   // find first node; prepare to track interactions-with-placed-nodes
   let interactions = {};
@@ -1216,16 +1296,16 @@ function hive_layout(nodes) {
     // And remove it from edge order:
     layout.edge.delete(k);
     let oidx = 0;
-    for (; oidx < layout.edgeorder.length; ++oidx) {
-      let op = layout.edgeorder[oidx];
+    for (; oidx < layout.edge_order.length; ++oidx) {
+      let op = layout.edge_order[oidx];
       if (op[0] == pos[0] && op[1] == pos[1]) {
         break;
       }
     }
-    if (oidx == layout.edgeorder.length) {
+    if (oidx == layout.edge_order.length) {
       console.error("Failed to find pos in edge order: " + pos);
     } else {
-      layout.edgeorder.splice(oidx, 1);
+      layout.edge_order.splice(oidx, 1);
     }
 
     // Add unoccupied neighbors to edge:
@@ -1233,7 +1313,7 @@ function hive_layout(nodes) {
       let nbk = pos__key(nb);
       if (layout.occupants[nbk] == undefined && !layout.edge.has(nbk)) {
         layout.edge.add(nbk);
-        layout.edgeorder.push(nb);
+        layout.edge_order.push(nb);
       }
     }
 
@@ -1259,8 +1339,8 @@ function hive_layout(nodes) {
 
     function better_candidate(node) {
       // Favors nodes that have more interactions-with-placed-nodes, then
-      // breaks ties using total-interactions, # of neighbors, and ID values in
-      // that order.
+      // breaks ties using total-interactions, # of neighbors, group values,
+      // and ID values in that order.
       let ints = interactions[node.id];
       let tot = node.initiated + node.received;
       let nbs = node.neighbors;
@@ -1272,8 +1352,12 @@ function hive_layout(nodes) {
         } else if (tot == best_any) {
           if (best_neighbors == undefined || nbs > best_neighbors) {
           } else if (nbs == best_neighbors) {
-            if (result == undefined || d3.descending(node.id, result.id)) {
+            if (result == undefined || node.group > result.group) {
               return true;
+            } else if (node.group == result.group) {
+              if (d3.descending(node.id, result.id) > 0) {
+                return true;
+              }
             }
           }
         }
@@ -1331,7 +1415,7 @@ function hive_layout(nodes) {
     let best_energy = undefined;
     let nearest_origin = undefined;
     let candidate = undefined;
-    for (let pos of layout.edgeorder) {
+    for (let pos of layout.edge_order) {
       let energy = 0;
       let abs = simplex_coords(pos);
       for (let linkto of links) {
@@ -1365,8 +1449,13 @@ function hive_layout(nodes) {
     return candidate;
   }
 
+  // Set up hive rank counter:
+  let rank = 0;
+
   // Keep assigning nodes to positions until we run out:
   do {
+    next.__hive_rank__ = rank;
+    rank += 1;
     target = best_position_for(next);
     assign_pos(next, target);
     next = pick_next_node();
@@ -1376,11 +1465,34 @@ function hive_layout(nodes) {
   return layout;
 }
 
-function impose_hive_layout(simulation, alpha_factor) {
-  // Alpha factors:
-  //  32 -> 150 ticks
-  //  8 -> 90 ticks
-  //  2 -> 30 ticks
+function impose_layout(type) {
+  // Presets for impose_hive_layout
+  if (type == "strict") {
+    impose_hive_layout(SIMULATION);
+  } else if (type == "loose") {
+    impose_hive_layout(SIMULATION, VERY_LOW_ENERGY, 3);
+  } else if (type == "relaxed") {
+    impose_hive_layout(SIMULATION, MEDIUM_ENERGY, 5);
+  } else {
+    console.warn("Unknown layout preset: '" + type + "'");
+    impose_hive_layout(SIMULATION, MEDIUM_ENERGY, 5);
+  }
+}
+
+function impose_hive_layout(simulation, cooloff_alpha, cooloff_periods) {
+  // Computes a hive layout, and then relaxes it a controlled amount. The
+  // cooloff_alpha and cooloff_periods arguments can be left out, if
+  // cooloff_alpha isn't given, then the simulation is fixed into the exact
+  // hive layout; if cooloff_periods isn't given, then 3 cooloff periods are
+  // used.
+  if (cooloff_periods == undefined) {
+    if (cooloff_alpha == undefined) {
+      cooloff_periods = 0;
+    } else {
+      cooloff_periods = 3;
+    }
+  }
+
   let nodes = simulation.nodes();
   let layout = hive_layout(nodes);
   for (let node of nodes) {
@@ -1394,21 +1506,36 @@ function impose_hive_layout(simulation, alpha_factor) {
     node.vx = 0;
     node.vy = 0;
   }
-  if (alpha_factor == undefined) {
-    simulation.alpha(simulation.alphaMin()*2).restart();
+  let calpha = cooloff_alpha;
+  if (calpha == undefined) {
+    calpha = simulation.alphaMin()*2;
+  }
+
+  simulation.alpha(calpha).restart(); // restart w/ non-terminal alpha
+
+  if (cooloff_periods == 0) {
+    simulation.tick(); // tick once
   } else {
-    simulation.alpha(simulation.alphaMin()*alpha_factor).restart();
+    for (let i = 0; i < cooloff_periods; ++i) {
+      for (let j = 0; j < COOLOFF_TICKS; ++j) {
+        simulation.tick();
+      }
+    }
+    simulation.alpha(calpha); // keep up alpha
   }
-  simulation.tick();
-  if (alpha_factor == undefined) {
-    simulation.alpha(0);
-  }
+  simulation.alpha(0); // prevent further updates
 }
 
+// Global data structures:
+var ORIGINAL = null;
+var FILTERED = null;
 var GRAPH = null;
+
+// Global d3 objects:
 var LINKS = null;
 var NODES = null;
 var BARS = null;
+var BARS_BELOW = null;
 var LISTINGS = null;
 var EGO_RANKING = null;
 var EGO_CURRENT = null;
@@ -1476,6 +1603,20 @@ function refresh_symbols() {
       .on("click", d => toggle_select(d, !d.__selected__))
   }
 
+  // Affinity graph
+  if (AFFINITY_NODES) {
+    AFFINITY_NODES.selectAll("text.symbol").remove();
+    AFFINITY_NODES.append("text")
+      .text(d => symbol_for(d))
+      .style("font-size", d => font_size_for(d))
+      .classed("symbol", true)
+      .attr('x', 0)
+      .attr('y', 0)
+      .on("mouseover", hoverstarted)
+      .on("mouseout", hoverended)
+      .on("click", d => toggle_select(d, !d.__selected__))
+  }
+
   // Sidebar
   LISTINGS.select("span.symbol")
     .text(function (d) { return symbol_for(d); });
@@ -1493,7 +1634,9 @@ function set_nodes_and_links(nodes, links) {
     .data(nodes)
     .enter().append("g");
 
-  NODES.each(function(d) { d.__node__ = this; });
+  NODES
+    .each(function(d) { d.__node__ = this; })
+    .classed("selected", d => SELECTED_NODES.has(d.id));
 
   var node_titles = NODES.append("title")
     .text(function(d) {
@@ -1605,15 +1748,7 @@ function set_nodes_and_links(nodes, links) {
     );
 
   // Node divs on the sidebar:
-  LISTING.selectAll("div").remove()
-  LISTINGS = LISTING.selectAll("div")
-    .data(nodes)
-    .enter().append("div")
-  LISTINGS
-    .classed("listing", true)
-    .classed("selected", d => SELECTED_NODES.has(d.id))
-    .each(function(d) { d.__char__ = this; });
-  sort_listings(document.getElementById("listing_sort").value);
+  set_listings_nodes(nodes);
 
   refresh_symbols();
 
@@ -1654,8 +1789,11 @@ function set_nodes_and_links(nodes, links) {
   // the hive layout takes care of this, but otherwise it would be needed
   //SIMULATION.alpha(1).restart();
 
-  // Impose loose hive layout:
-  impose_hive_layout(SIMULATION, LARGE_ALPHA_FACTOR);
+  // Impose selected hive layout:
+  impose_layout(document.getElementById("layout_select").value);
+
+  // Re-sort after layout to pick up layout ordering:
+  update_listings();
 }
 
 BAR_TYPE = "initiated";
@@ -1680,7 +1818,21 @@ function font_size_for_digits(value, base_size, scale_factor) {
   return result + "px";
 }
 
-function set_bars(data, plot) {
+function set_bars(data, above, below) {
+  if (above != undefined && below == undefined) {
+    plot = above;
+  } else if (above != undefined) {
+    plot = above + "+" + below;
+  } else {
+    if (document.getElementById("double_histogram").checked) {
+      plot = (
+        document.getElementById("which_histogram").value
+      + "+" + document.getElementById("extra_histogram").value
+      );
+    } else {
+      plot = document.getElementById("which_histogram").value;
+    }
+  }
   // Assign symbols:
   assign_auto(data);
 
@@ -1694,23 +1846,32 @@ function set_bars(data, plot) {
   let hist_height = +HIST.node().parentNode.getBoundingClientRect().height;
 
   // Compute selected bars:
-  let sel = {
-    "initiated": new Set(),
-    "received": new Set()
-  };
+  let sel = {};
+  for (let prp of Object.keys(HCOLORS)) {
+    sel[prp] = new Set();
+  }
   let sel_data = data.filter(d => SELECTED_NODES.has(d.id));
   for (let d of sel_data) {
-    sel.initiated.add(d.initiated);
-    sel.received.add(d.received);
+    for (let prp of Object.keys(HCOLORS)) {
+      sel[prp].add(d[prp]);
+    }
   }
 
   // Build histograms:
   let hist = [];
 
+  let combo = false;
+  let first, second;
+  if (plot.indexOf("+") >= 0) {
+    combo = true;
+    first = plot.slice(0, plot.indexOf("+"));
+    second = plot.slice(plot.indexOf("+") + 1);
+  }
+
   for (let d of data) {
-    if (plot == "combined") {
-      let i = d['initiated'];
-      let r = d['received'];
+    if (combo) {
+      let i = d[first];
+      let r = d[second];
       if (hist[i]) {
         hist[i][0] += 1;
       } else {
@@ -1736,14 +1897,14 @@ function set_bars(data, plot) {
     if (hist[i] == undefined && COLLAPSE_HISTOGRAMS) {
       continue; // don't add a bar
     }
-    if (plot == "combined") {
+    if (combo) {
       hbars.push([i, hist[i] || [0, 0]]);
     } else {
       hbars.push([i, hist[i] || 0]);
     }
   }
   let max_val;
-  if (plot == "combined") {
+  if (combo) {
     max_val = Math.max(...hbars.map(x => Math.max(...x[1])));
   } else {
     max_val = Math.max(...hbars.map(x => x[1]));
@@ -1754,7 +1915,7 @@ function set_bars(data, plot) {
     (hist_width - 30) / Math.min(20, hbars.length)
   );
 
-  if (plot == "combined") {
+  if (combo) {
     function bar_height(d) {
       return (d/max_val) * (hist_height - 45)/2;
     }
@@ -1787,25 +1948,25 @@ function set_bars(data, plot) {
     .on(
       "click",
       function (d) {
-        let chars = LISTINGS.data();
+        let nodes = LISTINGS.data();
         let rect_node = this;
         let was_selected = rect_node.classList.contains("selected");
-        for (let ch of chars) {
+        for (let nd of nodes) {
           if (
-            (plot == "combined" && ch.initiated == d[0])
-         || ch[plot] == d[0]
+            (plot == "combined" && nd.initiated == d[0])
+         || nd[plot] == d[0]
           ) {
-            toggle_select(ch, !was_selected);
+            toggle_select(nd, !was_selected);
           }
         }
       }
     );
 
-  if (plot == "combined") {
+  if (combo) {
     BARS
-      .classed("initiated", true)
+      .classed(first, true)
       .classed("selected", d => sel.initiated.has(d[0]))
-      .attr('fill', HCOLORS['initiated'])
+      .attr('fill', HCOLORS[first])
       .attr('height', d => bar_height(d[1][0]));
   } else {
     BARS
@@ -1820,13 +1981,13 @@ function set_bars(data, plot) {
   let names = [];
   let nd = [...data];
   nd.sort((a, b) => d3.ascending(a.id, b.id));
-  if (plot == "combined") {
+  if (combo) {
     nd.forEach(
       function(d) {
-        if (names[d.initiated]) {
-          names[d.initiated] += "\n" + d.id;
+        if (names[d[first]]) {
+          names[d[first]] += "\n" + d.id;
         } else {
-          names[d.initiated] = d.id;
+          names[d[first]] = d.id;
         }
       }
     )
@@ -1854,7 +2015,7 @@ function set_bars(data, plot) {
       .style("font-size", (d, i) => font_size_for_digits(d[0], 12))
       .attr('x', (d, i) => 15 + i*bar_width + bar_width/2);
 
-  if (plot == "combined") {
+  if (combo) {
     ticks
       .attr('y', (hist_height/2))
       .style("dominant-baseline", "central");
@@ -1876,9 +2037,9 @@ function set_bars(data, plot) {
   let lp = 4;
   let ll = 18;
 
-  if (plot == "combined") {
+  if (combo) {
     labels
-      .classed("initiated", true)
+      .classed(first, true)
       .text(d => d[1][0])
       .style("visibility", d => d[1][0] > 0 ? "visible" : "hidden")
       .attr('fill', d => bar_height(d[1][0]) > ll ? 'white': 'black')
@@ -1907,19 +2068,19 @@ function set_bars(data, plot) {
   }
 
   // Extra bars going downwards:
-  if (plot == "combined") {
-    BARS = BARS_GROUP.selectAll("rect.bar.below")
+  if (combo) {
+    BARS_BELOW = BARS_GROUP.selectAll("rect.bar.below")
       .data(hbars)
       .enter().append("rect")
       .classed("bar", true)
       .classed("below", true)
-      .classed("received", true)
-      .classed("selected", d => sel.received.has(d[0]))
+      .classed(second, true)
+      .classed("selected", d => sel[second].has(d[0]))
       .attr('x', (d, i) => 15 + i*bar_width + bar_width/20)
       .attr('width', bar_width - bar_width/10)
       .attr('height', d => bar_height(d[1][1]))
       .attr('y', (hist_height - 30)/2 + 30)
-      .attr('fill', HCOLORS['received'])
+      .attr('fill', HCOLORS[second])
       .on(
         "click",
         function (d) {
@@ -1927,7 +2088,7 @@ function set_bars(data, plot) {
           let rect_node = this;
           let was_selected = rect_node.classList.contains("selected");
           for (let ch of chars) {
-            if (ch.received == d[0]) {
+            if (ch[second] == d[0]) {
               toggle_select(ch, !was_selected);
             }
           }
@@ -1939,15 +2100,15 @@ function set_bars(data, plot) {
     nd.sort((a, b) => d3.ascending(a.id, b.id));
     nd.forEach(
       function(d) {
-        if (bot_names[d.received]) {
-          bot_names[d.received] += "\n" + d.id;
+        if (bot_names[d[second]]) {
+          bot_names[d[second]] += "\n" + d.id;
         } else {
-          bot_names[d.received] = d.id;
+          bot_names[d[second]] = d.id;
         }
       }
     )
 
-    let bot_titles = BARS.append("title")
+    let bot_titles = BARS_BELOW.append("title")
       .text(d => bot_names[d[0]]);
 
     let bot_labels = BARS_GROUP.selectAll("text.label.below")
@@ -1960,7 +2121,7 @@ function set_bars(data, plot) {
         .style("text-anchor", "middle")
         .style("font-size", (d, i) => font_size_for_digits(d[0], 10))
         .attr('x', (d, i) => 15 + i*bar_width + bar_width/2)
-        .attr('fill', d => bar_height(d[1]) > ll ? 'white': 'black')
+        .attr('fill', d => bar_height(d[1][1]) > ll ? 'white': 'black')
         .attr(
           'y',
           d => bar_height(d[1][1]) > ll ? bar_bot(d[1]) - lp: bar_bot(d[1]) + lp
@@ -1973,11 +2134,18 @@ function set_bars(data, plot) {
 
   // overflow-x on #graphs + this = scroll
   d3.select("#histogram").style('width', (30 + bar_width * hbars.length)+"px");
+
+  // Update listings
+  set_listings_nodes(data);
 }
 
-function lookup_node(id) {
-  // Looks up a node by its ID value.
-  return GRAPH.node_table[id];
+function lookup_node(id, graph) {
+  // Looks up a node by its ID value. Normally graph is left to default to the
+  // global GRAPH.
+  if (graph == undefined) {
+    graph = GRAPH;
+  }
+  return graph.node_table[id];
 }
 
 function lookup_link(from_id, to_id) {
@@ -2062,6 +2230,27 @@ function ensure_at_least_two_selected() {
     toggle_select(chosen, true);
 
   } // don't do anything here...
+}
+
+function ensure_at_least_n_selected(n) {
+  // Works like ensure_at_least_two_selected, but works for any given number n.
+  // Fails if N is larger than the size of the graph, in which case it selects
+  // the entire graph. Just selects nodes based on their interactions count.
+  while (SELECTED_NODES.size < n) {
+    let best = undefined;
+    let chosen = undefined;
+    for (let node of GRAPH.nodes) {
+      if (SELECTED_NODES.has(node.id)) {
+        continue; // already selected
+      }
+      if (best == undefined || node.interactions > best) {
+        best = node.interactions;
+        chosen = node;
+      }
+    }
+    // Select that node
+    toggle_select(chosen, true);
+  }
 }
 
 function ensure_pair_selected() {
@@ -2222,9 +2411,13 @@ function set_ego(nodes, dlinks) {
   EGO_CURRENT = focus_node.id;
 
   // Set controls:
-  d3.select("#eg_name").text(focus_node.id);
+  d3.select("#eg_name")
+    .text(focus_node.id)
+    .style("color", CAT_COLORS(focus_node.group));
   d3.select("#eg_reselect").node().disabled = true;
-  d3.select("#eg_next").text(focus_node.id);
+  d3.select("#eg_next")
+    .text(focus_node.id)
+    .style("color", "gray");
 
   // Compute affinities and rank nodes:
   EGO_RANKING = [];
@@ -2320,8 +2513,6 @@ function set_ego(nodes, dlinks) {
       .on("drag", dragged)
       .on("end", dragended));
 
-  // EGO_NODES.append("text").text(d => node_affinity(focus_node, d));
-
   // Links
   EGO_LINKS_GROUP.selectAll("g").remove()
   EGO_LINKS = EGO_LINKS_GROUP.selectAll("g")
@@ -2351,14 +2542,6 @@ function set_ego(nodes, dlinks) {
         );
       }
     );
-
-  /*
-  var edge_bubbles = edges.append("circle")
-    .classed("diredge-bubble", true)
-    .attr("r", 9)
-    .attr("cx", d => dir_edge_points(d, x => x.__ego_node__).xe)
-    .attr("cy", d => dir_edge_points(d, x => x.__ego_node__).ye);
-  */
 
   var edge_labels = edges.append("text")
     .classed("diredge-label", true)
@@ -2431,35 +2614,397 @@ function set_ego(nodes, dlinks) {
     );
 
   // Node divs on the sidebar:
-  LISTING.selectAll("div").remove()
-  LISTINGS = LISTING.selectAll("div")
-    .data(visible_nodes)
-    .enter().append("div")
-  LISTINGS
-    .classed("listing", true)
-    .classed("selected", d => SELECTED_NODES.has(d.id))
-    .each(function(d) { d.__ego_char__ = this; });
-  sort_listings(document.getElementById("listing_sort").value);
+  set_listings_nodes(visible_nodes);
 
   // Update symbols
   refresh_symbols();
 }
 
-function set_affinity(nodes, links) {
-  // Sets up the affinity graph using the currently selected nodes, and first
-  // ensuring that at least two nodes are selected. Each selected node is
-  // arranged on the perimeter of a circle, and the rest of the nodes which
-  // have at least some affinity for one or more selected nodes are arranged
-  // inside it according to their relative affinity among the selected nodes,
-  // or outside it if they have exclusive affinity for exactly one of the
-  // selected nodes.
-  ensure_at_least_two_selected();
+function set_listings_nodes(nodes) {
+  // Sets which nodes are displayed in the listings
+  LISTING.selectAll("div").remove()
+  LISTINGS = LISTING.selectAll("div")
+    .data(nodes)
+    .enter().append("div")
+  LISTINGS
+    .classed("listing", true)
+    .classed("selected", d => SELECTED_NODES.has(d.id))
+    .each(function(d) { d.__node__ = this; });
+
+  update_listings();
+}
+
+function reset_affinity_layout_info(graph) {
+  // Resets the cached affinity layout for a graph.
+  graph.__aff_layout__ = {};
+}
+
+function affinity_layout_position(graph, outside, node, outside_set, radius) {
+  // Computes the position of a node in an affinity layout with the given
+  // exterior nodes (if outside_set isn't supplied, it will be created
+  // automatically). outside should be a list of node IDs, not nodes. The
+  // radius is a scaling factor and defaults to 0.95.
+  if (outside_set == undefined) {
+    outside_set = new Set(outside);
+  }
+
+  if (radius == undefined) {
+    radius = 0.95;
+  }
+
+  // Remember results:
+  if (
+    graph.__aff_layout__
+ && graph.__aff_layout__.hasOwnProperty(radius)
+ && graph.__aff_layout__[radius].hasOwnProperty(node.id)
+  ) {
+    return graph.__aff_layout__[radius][node.id];
+  } else if (graph.__aff_layout__ == undefined) {
+    graph.__aff_layout__ = {};
+    graph.__aff_layout__[radius] = {};
+  } else if (!graph.__aff_layout__.hasOwnProperty(radius)) {
+    graph.__aff_layout__[radius] = {};
+  }
+
+  // Compute dimension for layout:
+  let s_width = +AFFINITY.node().getBoundingClientRect().width;
+  let s_height = +AFFINITY.node().getBoundingClientRect().height;
+  let dim = Math.max(1, Math.min(s_width, s_height));
+
+  if (outside_set.has(node.id)) { // an exterior node
+    // outside nodes are pre-sorted
+    rank = outside.indexOf(node.id);
+    if (rank < 0) {
+      console.error("Outside node '" + node.id + "' wasn't in outside list!");
+    }
+    let r = (dim/2) * radius;
+    let theta = Math.PI * 2 * (rank / outside.length);
+    let result = [
+      SMALL_GRAPH_WIDTH/2 + r * Math.cos(theta),
+      SMALL_GRAPH_HEIGHT/2 + r * Math.sin(theta)
+    ];
+    graph.__aff_layout__[radius][node.id] = result;
+    return result;
+
+  } else { // an interior node
+
+    let pos = [0, 0];
+    let weight = 0;
+    for (let outer of outside) {
+      let link = lookup_link(outer, node.id);
+      let interactions = link != undefined ? link.value : 0;
+      if (!outside_set.has(outer)) {
+        console.error("Outside node '" + outer + "' is not in outside set!");
+      }
+      let opos = affinity_layout_position(
+        GRAPH,
+        outside,
+        lookup_node(outer),
+        outside_set,
+        radius * 0.9
+      );
+      pos[0] += opos[0] * interactions;
+      pos[1] += opos[1] * interactions;
+      weight += interactions;
+    }
+
+    let result = [pos[0] / weight, pos[1] / weight];
+    graph.__aff_layout__[radius][node.id] = result;
+    return result;
+  }
+}
+
+function set_affinity(nodes, dlinks) {
+  // Sets up the affinity graph using the currently selected nodes, first
+  // ensuring that at least four nodes are selected. Each selected node is
+  // arranged on the perimeter of a circle except the last, which is placed
+  // inside the circle according to its relative affinity among the selected
+  // nodes. Options for adding/removing nodes from the perimeter and center of
+  // the affinity graph are made available.
+
+  // Determine new outside and inside node groups if necessary:
+  let outside = GRAPH.__aff_outside__;
+  let inside = GRAPH.__aff_inside__;
+  if (outside == undefined || inside == undefined) {
+    ensure_at_least_n_selected(4);
+
+    outside = [...SELECTION_ORDER];
+    inside = [ outside[outside.length - 1] ];
+    outside = outside.slice(0, outside.length - 1);
+    GRAPH.__aff_outside__ = outside;
+    GRAPH.__aff_inside__ = inside;
+
+    clear_selection();
+  }
+  let visible_nodes = [];
+  for (let nid of outside.concat(inside)) {
+    visible_nodes.push(lookup_node(nid));
+  }
+  let is_outside = new Set(outside);
+  let is_inside = new Set(inside);
+  let relevant_edges = dlinks.filter(
+    function (l) {
+      return (
+        (is_outside.has(l.source.id) || is_inside.has(l.source.id))
+     && (is_outside.has(l.target.id) || is_inside.has(l.target.id))
+      );
+    }
+  );
 
   // Assign symbols:
   assign_auto(nodes);
+
+  // Sort outside nodes by interactions -> initiated
+  outside.sort(
+    function(a, b) {
+      let na = lookup_node(a);
+      let nb = lookup_node(b);
+      return (
+        d3.descending(na.interactions, nb.interactions)
+     || d3.descending(na.initiated, nb.initiated)
+     || d3.ascending(na.id, nb.id)
+      );
+    }
+  );
+
+  // Sort inside nodes by interactions -> initiated
+  inside.sort(
+    function(a, b) {
+      let na = lookup_node(a);
+      let nb = lookup_node(b);
+      return (
+        d3.descending(na.interactions, nb.interactions)
+     || d3.descending(na.initiated, nb.initiated)
+     || d3.ascending(na.id, nb.id)
+      );
+    }
+  );
+
+  // Assign node positions:
+  reset_affinity_layout_info(GRAPH);
+  for (let node of visible_nodes) {
+    node.__aff_pos__ = affinity_layout_position(
+      GRAPH,
+      outside,
+      node,
+      is_outside
+    );
+  }
+
+  // Nodes:
+  AFFINITY_NODES_GROUP.selectAll("g").remove();
+  AFFINITY_NODES = AFFINITY_NODES_GROUP.selectAll("g")
+    .data(visible_nodes)
+    .enter().append("g");
+
+  AFFINITY_NODES
+    .each(function(d) { d.__aff_node__ = this; })
+    .classed("selected", d => SELECTED_NODES.has(d.id))
+    .attr(
+      "transform",
+      d => "translate(" + d.__aff_pos__[0] + "," + d.__aff_pos__[1] + ")"
+    );
+
+  var node_titles = AFFINITY_NODES.append("title")
+    .text(function(d) {
+      return (
+        d.id
+      + "\nInitiated: " + d.initiated
+      + "\nReceived: " + d.received
+      + "\nNeighbors: " + d.neighbors
+      );
+    });
+
+  // Add circles:
+  var circles = AFFINITY_NODES.append("circle")
+    .attr("fill", function(d) { return CAT_COLORS(d.group); })
+    .attr("r", 11)
+    .style("cursor", "crosshair")
+    .on("mouseover", hoverstarted)
+    .on("mouseout", hoverended)
+    .on("click", d => toggle_select(d, !d.__selected__));
+
+  // Links
+  AFFINITY_LINKS_GROUP.selectAll("g").remove()
+  AFFINITY_LINKS = AFFINITY_LINKS_GROUP.selectAll("g")
+    .data(relevant_edges)
+    .enter().append("g");
+
+  AFFINITY_LINKS.each(function(d) { d.__aff_edge__ = this; });
+
+  var edges = AFFINITY_LINKS.append("g")
+    .classed("directional-edge", true)
+
+  var edge_lines = edges.append("path")
+    .classed("diredge-line", true)
+    .attr(
+      "stroke-width",
+      function(d) { return d.value > 1 ? 0.5 + Math.sqrt(d.value) : 1; }
+    );
+
+  edge_lines
+    .attr(
+      "d",
+      function(d) {
+        let points = dir_edge_points(d, x => x.__aff_node__);
+        return (
+          "M " + points.xs + " " + points.ys
+        + " L " + points.xe + " " + points.ye
+        );
+      }
+    );
+
+  var edge_labels = edges.append("text")
+    .classed("diredge-label", true)
+    .attr("x", d => dir_edge_points(d, x => x.__aff_node__).xe)
+    .attr("y", d => dir_edge_points(d, x => x.__aff_node__).ye)
+    .style("font-size", d => font_size_for_digits(d.value, 15, 0.85))
+    .text(d => d.value);
+
+  // node labels
+  AFFINITY.selectAll("g.label").remove();
+  var labels = AFFINITY.selectAll("g.label")
+    .data(visible_nodes)
+    .enter().append("g");
+
+  labels
+    .classed("label", true)
+    .attr('transform', "translate(12, 24)")
+    .style('visibility', "hidden")
+    .each(function(d) { d.__aff_label__ = this; });
+
+  // reposition labels if/when the graph is scrolled
+  d3.select("#graphs")
+    .on("scroll", function () {
+      let st = this.scrollTop;
+      let sl = this.scrollLeft;
+      let pos = "translate(" + (sl + 12) + "," + (st + 24) + ")";
+      labels.attr('transform', pos);
+    });
+
+  var ltext = labels.append("text")
+    .classed("label-text", true)
+    .attr('z', 20)
+    .text(d => d.id)
+    .each( // can't use d3 to create backing because order matters
+      function () {
+        let backing = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "rect"
+        );
+        backing.classList.add("backing");
+        let mybb = this.getBBox();
+        backing.setAttribute('x', mybb.x - 4);
+        backing.setAttribute('y', mybb.y - 2);
+        backing.setAttribute('width', mybb.width + 8);
+        backing.setAttribute('height', mybb.height + 4);
+        this.parentNode.insertBefore(backing, this);
+      }
+    );
+
+  var edge_titles = AFFINITY_LINKS.append("title")
+    .text(d => d.source.id + "→" + d.value + "→" + d.target.id);
+
+  // Node divs on the sidebar:
+  set_listings_nodes(GRAPH.nodes);
+
+  // Update symbols
+  refresh_symbols();
+
+  // Set visibility for outside links
+  toggle_outside_links();
+
+  // Make sure node diffs are current:
+  update_node_diffs();
 }
 
-function receive_data(graph) {
+function add_outside_nodes() {
+  let sel = [...SELECTION_ORDER];
+  if (GRAPH.__aff_inside__ != undefined) {
+    sel = sel.filter(x => GRAPH.__aff_inside__.indexOf(x) < 0);
+  }
+  if (GRAPH.__aff_outside__ == undefined) {
+    if (sel.length < 2) {
+      console.error("Too few selected nodes when updating outside nodes.");
+    }
+    GRAPH.__aff_outside__ = sel; // replace with selection
+  } else {
+    for (let nid of sel) {
+      if (GRAPH.__aff_outside__.indexOf(nid) < 0) {
+        GRAPH.__aff_outside__.push(nid);
+      }
+    }
+  }
+  set_affinity(GRAPH.nodes, GRAPH.dlinks);
+}
+
+function remove_outside_nodes() {
+  let sel = [...SELECTION_ORDER];
+  if (GRAPH.__aff_outside__ == undefined) {
+    console.error("Attempt to remove from outside nodes list before creation!");
+  } else {
+    console.log(sel, GRAPH.__aff_outside__);
+    for (let nid of sel) {
+      let idx = GRAPH.__aff_outside__.indexOf(nid);
+      if (idx >= 0) {
+        GRAPH.__aff_outside__.splice(idx, 1);
+      }
+    }
+    console.log(sel, GRAPH.__aff_outside__);
+    if (GRAPH.__aff_outside__.length < 2) {
+      console.error("Removed too many outside nodes!");
+    }
+  }
+  set_affinity(GRAPH.nodes, GRAPH.dlinks);
+}
+
+function add_inside_nodes() {
+  let sel = [...SELECTION_ORDER];
+  if (GRAPH.__aff_outside__ != undefined) {
+    sel = sel.filter(x => GRAPH.__aff_outside__.indexOf(x) < 0);
+  }
+  if (GRAPH.__aff_inside__ == undefined) {
+    if (sel.length < 2) {
+      console.error("Too few selected nodes when updating inside nodes.");
+    }
+    GRAPH.__aff_inside__ = sel; // replace with selection
+  } else {
+    for (let nid of sel) {
+      if (GRAPH.__aff_inside__.indexOf(nid) < 0) {
+        GRAPH.__aff_inside__.push(nid);
+      }
+    }
+  }
+  set_affinity(GRAPH.nodes, GRAPH.dlinks);
+}
+
+function remove_inside_nodes() {
+  let sel = [...SELECTION_ORDER];
+  if (GRAPH.__aff_inside__ == undefined) {
+    console.error("Attempt to remove from inside nodes list before creation!");
+  } else {
+    for (let nid of sel) {
+      let idx = GRAPH.__aff_inside__.indexOf(nid);
+      if (idx >= 0) {
+        GRAPH.__aff_inside__.splice(idx, 1);
+      }
+    }
+  }
+  set_affinity(GRAPH.nodes, GRAPH.dlinks);
+}
+
+var SHOW_OUTSIDE_LINKS = false;
+
+function toggle_outside_links(on) {
+  if (on == undefined) {
+    on = document.getElementById("show_outside_links").checked;
+  }
+
+  SHOW_OUTSIDE_LINKS = on;
+  set_link_visibility();
+}
+
+function augment_graph(graph) {
   // Build lookup tables for nodes from IDs and links from source/target IDs:
   graph.node_table = {};
   for (let node of graph.nodes) {
@@ -2488,28 +3033,28 @@ function receive_data(graph) {
     graph.dlink_table[sid][tid] = link;
   }
 
-  // Sets up the system using the given graph data.
-  GRAPH = graph;
-
   // We have to replace source/target ID refs with pointers:
-  GRAPH.links.forEach(
+  graph.links.forEach(
     function (link) {
-      link.source = lookup_node(link.source);
-      link.target = lookup_node(link.target);
+      link.source = lookup_node(link.source, graph);
+      link.target = lookup_node(link.target, graph);
     }
   );
-  GRAPH.dlinks.forEach(
+  graph.dlinks.forEach(
     function (link) {
-      link.source = lookup_node(link.source);
-      link.target = lookup_node(link.target);
+      link.source = lookup_node(link.source, graph);
+      link.target = lookup_node(link.target, graph);
     }
   );
 
-  // Find the neighborhood of each node:
-  for (let node of GRAPH.nodes) {
+  // Augment nodes:
+  for (let node of graph.nodes) {
+    // Add total interactions:
+    node.interactions = node.initiated + node.received;
+    // Find neighborhood:
     node.neighbors = 0;
     node.neighborhood = {};
-    for (let link of GRAPH.links) {
+    for (let link of graph.links) {
       if (link.source === node && link.target !== node) {
         node.neighbors += 1;
         node.neighborhood[link.target.id] = link.target;
@@ -2519,19 +3064,51 @@ function receive_data(graph) {
       }
     }
   }
+}
+
+function receive_data(graph) {
+  // Sets up the system using the given graph data.
+  ORIGINAL = graph;
+
+  // Lock down colors so they don't depend on which view we enter first:
+  for (let node of graph.nodes) {
+    CAT_COLORS(node.group);
+  }
+
+  // must happen pre-augment; augments result
+  FILTERED = filter_raw_graph(graph);
+
+  augment_graph(graph); // augment this graph
+
+  let use_filtered = document.getElementById("node_filter").checked;
+  if (use_filtered) {
+    GRAPH = FILTERED;
+  } else {
+    GRAPH = ORIGINAL;
+  }
 
   select_graph(document.getElementById("graph_select").value);
 }
 
+var DRAG_STARTED_AT = undefined;
+const DRAG_DELAY = 50; // milliseconds
+
 function dragstarted(d) {
   if (!d3.event.active) {
-    SIMULATION.alphaTarget(0.2).restart();
+    DRAG_STARTED_AT = performance.now();
   }
   d.fx = d.x;
   d.fy = d.y;
 }
 
 function dragged(d) {
+  if (
+    DRAG_STARTED_AT != undefined
+ && performance.now() - DRAG_STARTED_AT > DRAG_DELAY
+  ) {
+    DRAG_STARTED_AT = undefined;
+    SIMULATION.alphaTarget(MEDIUM_ENERGY).restart();
+  }
   d.fx = d3.event.x;
   d.fy = d3.event.y;
 }
@@ -2551,74 +3128,106 @@ var SHOW_LINKS = {
 };
 var COMPLETE_LEGEND = false;
 
-function hoverstarted(d) {
-  let node = d;
-  if (LINKS) {
-    d3.select(d.__label__).style("visibility", "visible");
-    LINKS.style(
-      "visibility",
-      d => (
-        (d.source === node || d.target === node)
-        ? "visible"
-        : "hidden"
-      )
-    );
-  }
-  if (EGO_LINKS) {
-    d3.select(d.__ego_label__).style("visibility", "visible");
-    EGO_LINKS.style(
-      "visibility",
-      d => (
-        (d.source === node || d.target === node)
-        ? "visible"
-        : "hidden"
-      )
-    )
+function link_touches(link, node) {
+  return link.source === node || link.target === node;
+}
+
+function touches_selected(link) {
+  return (
+    SELECTED_NODES.has(link.source.id)
+ || SELECTED_NODES.has(link.target.id)
+  );
+}
+
+function link_visibility(link, focus_node) {
+  if (focus_node != undefined) {
+    return link_touches(link, focus_node) ? "visible" : "hidden";
+  } else {
+    if (SELECTED_NODES.size > 0) { // selection overrules
+      return touches_selected(link) ? "visible": "hidden";
+    } else { // settings value
+      return SHOW_LINKS[link_class(link)] ? "visible" : "hidden";
+    }
   }
 }
 
-function hoverended(d) {
-  if (SELECTED_NODES.size > 0) {
-    if (LINKS) {
-      LINKS.style(
-        "visibility",
-        d => (
-          SELECTED_NODES.has(d.source.id)
-       || SELECTED_NODES.has(d.target.id)
-        ) ? "visible" : "hidden"
-      );
-    }
-    if (EGO_LINKS) {
-      EGO_LINKS.style(
-        "visibility",
-        function (d) {
-          if (SELECTED_NODES.size == 1 && SELECTED_NODES.has(EGO_CURRENT)) {
-            return "visible";
-          }
-          if (d.source.id == EGO_CURRENT) {
-            return SELECTED_NODES.has(d.target.id) ? "visible" : "hidden";
-          } else if (d.target.id == EGO_CURRENT) {
-            return SELECTED_NODES.has(d.source.id) ? "visible" : "hidden";
-          }
-        }
-      );
-    }
+function ego_link_visibility(link, focus_node) {
+  if (focus_node != undefined) {
+    return link_touches(link, focus_node) ? "visible" : "hidden";
   } else {
-    if (LINKS) {
-      LINKS.style(
-        "visibility",
-        d => SHOW_LINKS[link_class(d)] ? "visible" : "hidden"
-      )
-    }
-    if (EGO_LINKS) {
-      EGO_LINKS.style("visibility", "visible");
+    if (SELECTED_NODES.size > 0) { // selection takes precedence
+      if (SELECTED_NODES.size == 1 && SELECTED_NODES.has(EGO_CURRENT)) {
+        return "visible";
+      }
+      if (link.source.id == EGO_CURRENT) {
+        return SELECTED_NODES.has(link.target.id) ? "visible" : "hidden";
+      } else if (link.target.id == EGO_CURRENT) {
+        return SELECTED_NODES.has(link.source.id) ? "visible" : "hidden";
+      }
+    } else { // nothing selected
+      return "visible";
     }
   }
+}
+
+function affinity_link_visibility(link, focus_node) {
+  if (!SHOW_OUTSIDE_LINKS) { // check setting first
+    if (
+      GRAPH.__aff_outside__.indexOf(link.source.id) >= 0
+   && GRAPH.__aff_outside__.indexOf(link.target.id) >= 0
+    ) {
+      return "hidden";
+    } // else cascade onwards to check selection etc.
+  }
+
+  if (focus_node != undefined) {
+    return link_touches(link, focus_node) ? "visible" : "hidden";
+  } else {
+    if (SELECTED_NODES.size > 0) { // selection takes precedence
+      return touches_selected(link) ? "visible": "hidden";
+    } else { // nothing selected
+      return "visible";
+    }
+  }
+}
+
+function set_link_visibility(focus_node) {
   if (LINKS) {
-    d3.select(d.__label__).style("visibility", "hidden");
+    LINKS.style("visibility", d => link_visibility(d, focus_node));
   }
   if (EGO_LINKS) {
+    EGO_LINKS.style("visibility", d => ego_link_visibility(d, focus_node));
+  }
+  if (AFFINITY_LINKS) {
+    AFFINITY_LINKS.style(
+      "visibility",
+      d => affinity_link_visibility(d, focus_node)
+    );
+  }
+}
+
+function hoverstarted(d) {
+  set_link_visibility(d);
+  if (d.__label__ != undefined) {
+    d3.select(d.__label__).style("visibility", "visible");
+  }
+  if (d.__ego_label__ != undefined) {
+    d3.select(d.__ego_label__).style("visibility", "visible");
+  }
+  if (d.__aff_label__ != undefined) {
+    d3.select(d.__aff_label__).style("visibility", "visible");
+  }
+}
+function hoverended(d) {
+  set_link_visibility();
+  if (d.__label__ != undefined) {
+    d3.select(d.__label__).style("visibility", "hidden");
+  }
+  if (d.__ego_label__ != undefined) {
     d3.select(d.__ego_label__).style("visibility", "hidden");
+  }
+  if (d.__aff_label__ != undefined) {
+    d3.select(d.__aff_label__).style("visibility", "hidden");
   }
 }
 
@@ -2676,7 +3285,9 @@ function toggle_select(node, on) {
     } else {
       d3.select("#eg_reselect").node().disabled = false;
     }
-    d3.select("#eg_next").text(node.id);
+    d3.select("#eg_next")
+      .text(node.id)
+      .style("color", node.id == EGO_CURRENT ? "gray" : CAT_COLORS(node.group));
   } else {
     node.__selected__ = false;
     SELECTED_NODES.delete(node.id);
@@ -2713,32 +3324,119 @@ function toggle_select(node, on) {
       SELECTED_NODES.size == 0
     ) {
       d3.select("#eg_reselect").node().disabled = true;
-      d3.select("#eg_next").text("");
+      d3.select("#eg_next")
+        .text("")
+        .style("color", "gray");
     } else if (
       SELECTED_NODES.size == 1 && SELECTED_NODES.has(EGO_CURRENT)
     ) {
       d3.select("#eg_reselect").node().disabled = true;
-      d3.select("#eg_next").text(EGO_CURRENT);
+      d3.select("#eg_next")
+        .text(EGO_CURRENT)
+        .style("color", "gray");
     } else {
       d3.select("#eg_reselect").node().disabled = false;
-      d3.select("#eg_next").text(SELECTION_ORDER[SELECTION_ORDER.length-1]);
+      let sel_id = SELECTION_ORDER[SELECTION_ORDER.length-1];
+      let sel_node = lookup_node(sel_id);
+      d3.select("#eg_next")
+        .text(sel_id)
+        .style("color", CAT_COLORS(sel_node.group));
     }
   }
-  let sel = {
-    "initiated": new Set(),
-    "received": new Set()
+  let sel = {};
+  for (let prp of Object.keys(HCOLORS)) {
+    sel[prp] = new Set();
   };
-  if (NODES) {
-    let sel_data = NODES.data().filter(d => SELECTED_NODES.has(d.id));
-    for (let d of sel_data) {
-      sel.initiated.add(d.initiated);
-      sel.received.add(d.received);
+  let sel_data = GRAPH.nodes.filter(d => SELECTED_NODES.has(d.id));
+  for (let d of sel_data) {
+    for (let prp of Object.keys(HCOLORS)) {
+      sel[prp].add(d[prp]);
+    };
+  }
+  if (BARS_GROUP) {
+    for (let prp of Object.keys(HCOLORS)) {
+      BARS_GROUP.selectAll("rect.bar." + prp)
+        .classed("selected", d => sel[prp].has(d[0]));
     }
   }
-  BARS_GROUP.selectAll("rect.bar.initiated")
-    .classed("selected", d => sel.initiated.has(d[0]));
-  BARS_GROUP.selectAll("rect.bar.received")
-    .classed("selected", d => sel.received.has(d[0]));
+  set_link_visibility();
+  update_node_diffs();
+}
+
+function set_difference(a, b) {
+  return new Set([...a].filter(x => !b.has(x)));
+}
+
+function set_intersection(a, b) {
+  return new Set([...a].filter(x => b.has(x)));
+}
+
+function update_node_diffs() {
+  let ob_plus = document.getElementById("add_outside_nodes");
+  let ob_minus = document.getElementById("remove_outside_nodes");
+  let ib_plus = document.getElementById("add_inside_nodes");
+  let ib_minus = document.getElementById("remove_inside_nodes");
+
+  if (GRAPH.__aff_outside__ == undefined || GRAPH.__aff_inside__ == undefined) {
+    ob_plus.value = '~';
+    ob_plus.disabled = true;
+    ob_minus.value = '~';
+    ob_minus.disabled = true;
+    ib_plus.value = '~';
+    ib_plus.disabled = true;
+    ib_minus.value = '~';
+    ib_minus.disabled = true;
+    return;
+  }
+
+  let out_set = new Set(GRAPH.__aff_outside__);
+  let in_set = new Set(GRAPH.__aff_inside__);
+
+  let out_additions = set_difference(
+    set_difference(SELECTED_NODES, in_set),
+    out_set
+  );
+  let out_removals = set_intersection(out_set, SELECTED_NODES);
+  let in_additions = set_difference(
+    set_difference(SELECTED_NODES, out_set),
+    in_set
+  );
+  let in_removals = set_intersection(in_set, SELECTED_NODES);
+
+  if (out_additions.size == 0) {
+    ob_plus.value = '~';
+    ob_plus.disabled = true;
+  } else {
+    ob_plus.value = '+' + out_additions.size;
+    ob_plus.disabled = false;
+  }
+
+  if (out_removals.size == 0) {
+    ob_minus.value = '~';
+    ob_minus.disabled = true;
+  } else if (out_set.size - out_removals.size < 2) {
+    ob_minus.value = '!';
+    ob_minus.disabled = true;
+  } else {
+    ob_minus.value = "-" + out_removals.size;
+    ob_minus.disabled = false;
+  }
+
+  if (in_additions.size == 0) {
+    ib_plus.value = '~';
+    ib_plus.disabled = true;
+  } else {
+    ib_plus.value = '+' + in_additions.size;
+    ib_plus.disabled = false;
+  }
+
+  if (in_removals.size == 0) {
+    ib_minus.value = '~';
+    ib_minus.disabled = true;
+  } else {
+    ib_minus.value = "-" + in_removals.size;
+    ib_minus.disabled = false;
+  }
 }
 
 function toggle_legend_names(on) {
@@ -2753,29 +3451,68 @@ function toggle_link_visibility(cls, on) {
     .style("visibility", on ? "visible" : "hidden");
 }
 
+function copy_raw_node(node) {
+  // Copies just the core properties
+  return {
+    "id": node.id,
+    "initiated": node.initiated,
+    "received": node.received,
+    "group": node.group,
+  }
+}
+
+function copy_raw_link(link) {
+  // Copies just the core properties (pre-augmentation)
+  return {
+    "source": link.source,
+    "target": link.target,
+    "value": link.value
+  }
+}
+
+function filter_raw_graph(graph) {
+  // Produces a graph that only contains nodes with group >= 2. Takes a raw
+  // unaugmented graph as the argument.
+  let result = {
+    "nodes": [],
+    "links": [],
+    "dlinks": [],
+    "groups": [...graph.groups]
+  }
+  let pass = new Set();
+  for (let node of graph.nodes) {
+    if (node.group >= 2) {
+      result.nodes.push(copy_raw_node(node));
+      pass.add(node.id);
+    }
+  }
+  for (let link of graph.links) {
+    if (pass.has(link.source) && pass.has(link.target)) {
+      result.links.push(copy_raw_link(link));
+    }
+  }
+
+  for (let link of graph.dlinks) {
+    if (pass.has(link.source) && pass.has(link.target)) {
+      result.dlinks.push(copy_raw_link(link));
+    }
+  }
+
+  augment_graph(result);
+
+  return result;
+}
+
 function toggle_node_filter(on) {
-  if (!GRAPH) {
+  if (!ORIGINAL) {
     return;
   }
   if (on) {
-    let nodes = [];
-    let links = [];
-    for (let node of GRAPH.nodes) {
-      if (node.group >= 2) {
-        nodes.push(node);
-      }
-    }
-    for (let link of GRAPH.links) {
-      if (link.source.group >= 2 && link.target.group >= 2) {
-        links.push(link);
-      }
-    }
-    set_nodes_and_links(nodes, links);
-    set_bars(nodes);
+    GRAPH = FILTERED;
   } else {
-    set_nodes_and_links(GRAPH.nodes, GRAPH.links);
-    set_bars(GRAPH.nodes);
+    GRAPH = ORIGINAL;
   }
+  select_graph(document.getElementById("graph_select").value);
 
   let n = SIMULATION.nodes().length;
   let bespan = document.getElementById("best_energy");
@@ -2795,12 +3532,72 @@ function toggle_hist_collapse(on) {
   set_bars(GRAPH.nodes);
 }
 
-function sort_listings(sort_by) {
+function update_listings(sort_by) {
+  if (sort_by == undefined) {
+    sort_by = document.getElementById("listing_sort").value;
+  }
   let nodes = LISTING.selectAll("div").data();
   let sorted_nodes = [...nodes].sort(
     function(a, b) {
       if (sort_by == "default") {
-        if (GRAPH_TYPE == "ego") {
+        if (GRAPH_TYPE == "force") {
+          // sort by hive order if present otherwise by x/y dist from center
+          if (a.__hive_rank__ != undefined) {
+            return (
+              d3.ascending(a.__hive_rank__, b.__hive_rank__)
+           || d3.descending(a.initiated + a.received, b.initiated + b.received)
+           || d3.descending(a.initiated, b.initiated)
+           || d3.ascending(a.id, b.id)
+            );
+          } else {
+            let avx = a.x - LARGE_GRAPH_WIDTH/2;
+            let avy = a.y - LARGE_GRAPH_WIDTH/2;
+            let ad = Math.sqrt(avx*avx + avy*avy);
+            let bvx = b.x - LARGE_GRAPH_WIDTH/2;
+            let bvy = b.y - LARGE_GRAPH_WIDTH/2;
+            let bd = Math.sqrt(bvx*bvx + bvy*bvy);
+            return (
+              d3.ascending(ad, bd)
+           || d3.descending(a.initiated + a.received, b.initiated + b.received)
+           || d3.ascending(a.id, b.id)
+            );
+          }
+        } else if (GRAPH_TYPE == "histogram") { // sort by initiated
+          let subtype = document.getElementById("which_histogram").value;
+          if (subtype == "initiated") {
+            return (
+              d3.descending(a.initiated, b.initiated)
+           || d3.descending(a.received, b.received)
+           || d3.ascending(a.id, b.id)
+            );
+          } else if (subtype == "received") { // sort by received
+            return (
+              d3.descending(a.received, b.received)
+           || d3.descending(a.initiated, b.initiated)
+           || d3.ascending(a.id, b.id)
+            );
+          } else if (subtype == "interactions") { // sort by combined
+            return (
+              d3.descending(a.interactions, b.interactions)
+           || d3.descending(a.initiated, b.initiated)
+           || d3.ascending(a.id, b.id)
+            );
+          } else if (subtype == "neighbors") { // sort by neighbors
+            return (
+              d3.descending(a.neighbors, b.neighbors)
+           || d3.descending(a.initiated, b.initiated)
+           || d3.descending(a.initiated + a.received, b.initiated + b.received)
+           || d3.ascending(a.id, b.id)
+            );
+          } else {
+            // Default for histograms: sort by interactions (shouldn't happen)
+            return (
+              d3.descending(a.interactions, b.interactions)
+           || d3.descending(a.initiated, b.initiated)
+           || d3.ascending(a.id, b.id)
+            );
+          }
+        } else if (GRAPH_TYPE == "ego") { // sort by current ego order
           let a_flink = lookup_dlink(a.id, EGO_CURRENT);
           let b_flink = lookup_dlink(b.id, EGO_CURRENT);
           let a_rlink = lookup_dlink(EGO_CURRENT, a.id);
@@ -2819,10 +3616,10 @@ function sort_listings(sort_by) {
          || d3.descending(a_rval, b_rval)
          || d3.ascending(a.id, b.id)
           );
-        } else {
+        } else { // default to sort-by-total
           return (
-            d3.descending(a.initiated, b.initiated)
-         || d3.descending(a.received, b.received)
+            d3.descending(a.initiated + a.received, b.initiated + b.received)
+         || d3.descending(a.initiated, b.initiated)
          || d3.ascending(a.id, b.id)
           );
         }
@@ -2969,7 +3766,7 @@ function sort_listings(sort_by) {
 
   LISTINGS.append("span")
     .classed("stats", true)
-    .text(function(d) { return "→" + lst_total(d); });
+    .text(function(d) { return "=" + lst_total(d); });
 
   LISTINGS.append("span")
     .classed("stats", true)
