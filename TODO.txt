@@ -8,7 +8,8 @@
     [X] Honeycomb:
         1. Start by putting the character w/ the most interactions at the origin
         2. At each step, pick the character who has the most interactions summed
-           across already-placed characters to pick next.
+           across already-placed characters to pick next (break ties using
+           total interactions, then neighbors, then ID).
         3. At each step, pick a spot for that character from among not-already-
            occupied vertices on a simplex grid that are adjacent to an occupied
            vertex.
@@ -16,18 +17,25 @@
            sum of its distance from vertices occupied by already-placed nodes,
            according to the strength of connection with each of those nodes.
            The spot that has the minimum score is chosen, breaking ties towards
-           the origin, and double-ties towards the bottom right.
+           the origin, and double-ties by which edge spot was added first.
 [~] Fix into-the-sunset bug w/ unconnected nodes (attraction works at least)
 [X] Loose layout should be looser: force # of ticks at moderate alpha & restart
 [X] Affinity graphs
+[X] don't show dlinks in affinity graphs (now shows labeled links)
 
-[ ] don't show dlinks in affinity graphs...
-[ ] Scatter plots
-[ ] Writeup of how the graph layout works
+[ ] Mme. Pontmercy in Miserables groups 8/5 affinity plot!
+[ ] error message when we can't find the graph data
+[ ] break hive layout ties AWAY from the origin?
+[ ] hideable (and default-hidden) link labels for full network?
+[ ] consistent treatment of initiated/received/total/neighbors for filtered
+    graphs?
+[ ] select groups from legend
+[ ] scatter plots
+[ ] writeup of how the graph layout works
 [ ] DOT format
-[ ] Custom categories
-[ ] Ego network outer edges
-[ ] Side-by-side
-[ ] Extra relationships
-    [ ] Visualize subjects - Two copies of each node?
-    [ ] Locations? - Bipartite?
+[ ] custom categories
+[ ] ego network outer edges
+[ ] side-by-side
+[ ] extra relationships
+    [ ] visualize subjects - two copies of each node?
+    [ ] locations? - bipartite?

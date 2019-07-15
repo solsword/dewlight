@@ -195,6 +195,16 @@ text.symbol {
   paint-order: stroke fill;
 }
 
+.edge-label {
+  text-anchor: middle;
+  dominant-baseline: central;
+  font-size: 19px;
+  fill: black;
+  stroke: white;
+  stroke-width: 1.5pt;
+  paint-order: stroke fill;
+}
+
 rect.bar {
   cursor: crosshair;
 }
@@ -240,9 +250,77 @@ text {
   color: #aaa;
 }
 
+a.help {
+  margin: 0pt 3pt 0pt 3pt;
+  padding: 0pt 0pt 2pt 0pt;
+  border: 1pt solid black;
+  border-radius: 2pt;
+  display: inline-block;
+  box-sizing: border-box;
+  width: 1.1em;
+  height: 1.1em;
+  text-align: center;
+}
+
+a.help.wide {
+  width: auto;
+  padding: 0pt 2pt 2pt 2pt;
+}
+
+.UL {
+  position: fixed;
+  top: 4pt;
+  left: 0pt; /* WHY?!? */
+  margin: 0pt;
+  padding: 0pt;
+}
+
+#help {
+  position: absolute;
+  width: 100%;
+  visibility: hidden;
+}
+
+#help h1,h2,h3,h4,h5,h6 {
+  text-align: center;
+}
+
+#unhelp {
+  position: fixed;
+  top: 4pt;
+  left: 0pt; /* WHY?!? */
+}
     </style>
   </head>
   <body>
+    <!-- floating link to help:about -->
+    <h1 class="UL"><a class="help wide" href="#help:about">About</a></h1>
+    <!-- help text (hidden but shown on -->
+    <div id="help">
+      <a id="unhelp" class="help" href="#">Back</a>
+      <!-- START OF HELP -->
+      <h1>Help</h1>
+      <h2><a id="help:about">About</a></h2>
+        <p>
+          Dewlight is a visualization tool for networks. It has multiple tools
+          for visualizing connections between nodes and their relationships to
+          each other. The visualization tools include:
+        </p>
+        <p>
+        At the top left, the controls area shows
+        <a href="#help:controls">global controls</a> and graph-specific
+        controls (described in the help sections for each type of graph).
+        </p>
+      <h2><a id="help:controls">Controls</a></h2>
+      <h2><a id="help:relationships">Relationships</a></h2>
+      <h2><a id="help:histograms">Histograms</a></h2>
+      <h2><a id="help:ego_network">Ego Network</a></h2>
+      <h2><a id="help:affinity_plot">Affinity Plot</a></h2>
+      <h2><a id="help:colors">Colors</a></h2>
+      <h2><a id="help:listing">Listing</a></h2>
+      <!-- END OF HELP -->
+    </div>
+    <!-- controls div in upper left -->
     <div id="controls">
       show <select id="graph_select" onchange="select_graph(this.value)">
         <option selected="t" value="force">relationships</option>
@@ -271,7 +349,10 @@ text {
       <br/>
 
       <div id="fd_controls" class="graph_controls">
-        <h1 class="graph_label">All Relationships</h1>
+        <h1 class="graph_label">
+          All Relationships
+          <a class="help" href="#help:relationships">?</a>
+        </h1>
 
         hide
         <input
@@ -329,7 +410,10 @@ text {
       </div>
 
       <div id="hs_controls" class="graph_controls">
-        <h1 class="graph_label">Histograms</h1>
+        <h1 class="graph_label">
+          Histograms
+          <a class="help" href="#help:histograms">?</a>
+        </h1>
 
         graph
         <select
@@ -366,7 +450,11 @@ text {
       </div>
 
       <div id="eg_controls" class="graph_controls">
-        <h1 class="graph_label">Ego Network</h1>
+        <h1 class="graph_label">
+          Ego Network
+          <a class="help" href="#help:ego_network">?</a>
+        </h1>
+
         viewing <span id="eg_name"></span>
         |
         <input
@@ -400,13 +488,29 @@ text {
       </div>
 
       <div id="af_controls" class="graph_controls">
-        <h1 class="graph_label">Affinity Plot</h1>
+        <h1 class="graph_label">
+          Affinity Plot
+          <a class="help" href="#help:affinity_plot">?</a>
+        </h1>
         <input
          type="checkbox"
          id="show_outside_links"
          checked="t"
-         onclick="toggle_outside_links(this.checked);"
-         > show outside links
+         onclick="toggle_outside_links(!this.checked);"
+         > hide exterior links
+        |
+        <input
+         type="checkbox"
+         id="show_inside_links"
+         onclick="toggle_inside_links(!this.checked);"
+         > hide interior links
+        |
+        <input
+         type="checkbox"
+         id="affinity_edge_labels"
+         checked="t"
+         onclick="toggle_affinity_edge_labels(this.checked);"
+         > label edges
         <br/>
 
         update outside nodes
@@ -443,7 +547,10 @@ text {
 
     </div>
     <div id="legend">
-      <h1>Colors:</h1>
+      <h1>
+        Colors
+        <a class="help" href="#help:colors">?</a>
+      </h1>
       <div id="legend_entries">
       </div>
     </div>
@@ -455,7 +562,10 @@ text {
     </div>
     <div id="sidebar">
       <div id="sidebar-controls">
-        <h1>Listing:</h1>
+        <h1>
+          Listing
+          <a class="help" href="#help:listing">?</a>
+        </h1>
         <p>
         sort by
         <select id="listing_sort" onchange="update_listings(this.value)"/>
@@ -512,7 +622,7 @@ var AFFINITY_CONTROLS = d3.select("#af_controls");
 
 // Constants that control the gap between fragments of directional edges:
 const DIR_EDGE_GAP = 0.05;
-const MIN_GAP_SIZE = 20;
+const GAP_SIZE = 20;
 
 // Font size for symbols
 const SYMBOL_FONT_SIZE = 16;
@@ -534,6 +644,7 @@ var SYMBOL_LISTS = {
   "Devangari": "अइउऋऌएओकखगघङहचछजझञयशटठडढणरषतथदधनलसपफबभमव",
   "Japanese": "一二三四五六七八九十上中下正日大年会人本月長国出生子分東行同今高金時手見市力米自前円合立内事社者地京間田体学目後新明方部心民対主代言小思山実入回場野開万全定家北問話文動度県水安氏和政保表道相意発不党",
 };
+var DEFAULT_SYMBOL_SET = "English";
 var GROUP_MAP = {
   //0: "Japanese",
   //1: "Devangari",
@@ -615,6 +726,10 @@ function zh_numeral(digits, place) {
 
 function nth_symbol(group, n) {
   let ln = GROUP_MAP[group];
+  if (ln == undefined) {
+    GROUP_MAP[group] = DEFAULT_SYMBOL_SET;
+    ln = DEFAULT_SYMBOL_SET;
+  }
   if (ln == "Numeric") {
     return "" + (n+1);
   } else if (ln == "Numeric中文") {
@@ -833,7 +948,7 @@ function select_graph(type) {
   } else if (type == "ego") {
     set_ego(GRAPH.nodes, GRAPH.dlinks);
   } else if (type == "affinity") {
-    set_affinity(GRAPH.nodes, GRAPH.dlinks);
+    set_affinity(GRAPH.nodes, GRAPH.links);
   } else {
     // Error messages was already generated above
     set_nodes_and_links(graph.nodes, graph.links);
@@ -1355,7 +1470,7 @@ function hive_layout(nodes) {
             if (result == undefined || node.group > result.group) {
               return true;
             } else if (node.group == result.group) {
-              if (d3.descending(node.id, result.id) > 0) {
+              if (d3.ascending(node.id, result.id) > 0) { // TODO: Check order?
                 return true;
               }
             }
@@ -2316,6 +2431,46 @@ function ego_layout_position(focus, node, visible_nodes) {
   }
 }
 
+const MIN_LABEL_POS = 0.15; // limit for label positioning along links
+const UNPAIRED_LABEL_POS = 0.3; // where to put unreciprocated labels
+
+function edge_label_pos(link, get_elem) {
+  // Computes the position for an edge label along a link. The provided
+  // function must extract a d3 element from a node.
+  let src_elem = get_elem(link.source);
+  let trg_elem = get_elem(link.target);
+  let src_transform = src_elem.transform.baseVal.consolidate().matrix;
+  let trg_transform = trg_elem.transform.baseVal.consolidate().matrix;
+  let src_pos = [src_transform.e, src_transform.f];
+  let trg_pos = [trg_transform.e, trg_transform.f];
+
+  let vector = [trg_pos[0] - src_pos[0], trg_pos[1] - src_pos[1]];
+
+  // Forward and reverse values via dlink lookup:
+  let dl_fwd = lookup_dlink(link.source.id, link.target.id);
+  let dl_rev = lookup_dlink(link.target.id, link.source.id);
+
+  let f_val = 0;
+  let r_val = 0;
+  if (dl_fwd != undefined) { f_val = dl_fwd.value; }
+  if (dl_rev != undefined) { r_val = dl_rev.value; }
+
+  let fr = 0.5; // safe default (but shouldn't happen)
+  if (f_val + r_val != 0) {
+    fr = f_val / (f_val + r_val);
+  } else {
+    console.error("edge_label_pos called for edge without interactions.");
+    console.error(link);
+  }
+
+  let in_play = 1 - 2*MIN_LABEL_POS;
+
+  // no gap because we've only got one number to display
+  let sc = MIN_LABEL_POS + in_play * fr;
+
+  return [src_pos[0] + vector[0] * sc, src_pos[1] + vector[1] * sc];
+}
+
 function dir_edge_points(dlink, get_elem) {
   // Computes the edge points for a directional edge, given a function for
   // extracting a d3 element from a node (the provided directional link is
@@ -2340,10 +2495,12 @@ function dir_edge_points(dlink, get_elem) {
     let mag = Math.sqrt(vector[0]*vector[0] + vector[1]*vector[1]);
     let ulink = lookup_link(dlink.source.id, dlink.target.id);
     let fr = dlink.value / ulink.value;
-    let gap = Math.max(MIN_GAP_SIZE/mag, 0.05); // don't let gaps shrink too far
-    let sc = (0.15 + 0.7 * fr) * (1 - gap); // scale
+    let in_play = 1 - 2*MIN_LABEL_POS;
+    let gap = GAP_SIZE/(in_play * mag);
+    in_play -= gap;
+    let sc = MIN_LABEL_POS + in_play * fr; // scale
     if (fr == 1) { // no opposite member; back off a bit
-      sc = 0.3;
+      sc = UNPAIRED_LABEL_POS;
     }
     return {
       "xs": src_pos[0], "ys": src_pos[1],
@@ -2714,7 +2871,7 @@ function affinity_layout_position(graph, outside, node, outside_set, radius) {
   }
 }
 
-function set_affinity(nodes, dlinks) {
+function set_affinity(nodes, links) {
   // Sets up the affinity graph using the currently selected nodes, first
   // ensuring that at least four nodes are selected. Each selected node is
   // arranged on the perimeter of a circle except the last, which is placed
@@ -2742,7 +2899,7 @@ function set_affinity(nodes, dlinks) {
   }
   let is_outside = new Set(outside);
   let is_inside = new Set(inside);
-  let relevant_edges = dlinks.filter(
+  let relevant_edges = links.filter(
     function (l) {
       return (
         (is_outside.has(l.source.id) || is_inside.has(l.source.id))
@@ -2833,31 +2990,25 @@ function set_affinity(nodes, dlinks) {
   AFFINITY_LINKS.each(function(d) { d.__aff_edge__ = this; });
 
   var edges = AFFINITY_LINKS.append("g")
-    .classed("directional-edge", true)
+    .classed("edge", true)
 
-  var edge_lines = edges.append("path")
-    .classed("diredge-line", true)
+  var edge_lines = edges.append("line")
+    .classed("line", true)
     .attr(
       "stroke-width",
       function(d) { return d.value > 1 ? 0.5 + Math.sqrt(d.value) : 1; }
     );
 
   edge_lines
-    .attr(
-      "d",
-      function(d) {
-        let points = dir_edge_points(d, x => x.__aff_node__);
-        return (
-          "M " + points.xs + " " + points.ys
-        + " L " + points.xe + " " + points.ye
-        );
-      }
-    );
+    .attr("x1", d => d.source.__aff_pos__[0])
+    .attr("y1", d => d.source.__aff_pos__[1])
+    .attr("x2", d => d.target.__aff_pos__[0])
+    .attr("y2", d => d.target.__aff_pos__[1])
 
   var edge_labels = edges.append("text")
-    .classed("diredge-label", true)
-    .attr("x", d => dir_edge_points(d, x => x.__aff_node__).xe)
-    .attr("y", d => dir_edge_points(d, x => x.__aff_node__).ye)
+    .classed("edge-label", true)
+    .attr("x", d => edge_label_pos(d, x => x.__aff_node__)[0])
+    .attr("y", d => edge_label_pos(d, x => x.__aff_node__)[1])
     .style("font-size", d => font_size_for_digits(d.value, 15, 0.85))
     .text(d => d.value);
 
@@ -2911,8 +3062,10 @@ function set_affinity(nodes, dlinks) {
   // Update symbols
   refresh_symbols();
 
-  // Set visibility for outside links
+  // Update visibility from controls:
   toggle_outside_links();
+  toggle_inside_links();
+  toggle_affinity_edge_labels();
 
   // Make sure node diffs are current:
   update_node_diffs();
@@ -2935,7 +3088,7 @@ function add_outside_nodes() {
       }
     }
   }
-  set_affinity(GRAPH.nodes, GRAPH.dlinks);
+  set_affinity(GRAPH.nodes, GRAPH.links);
 }
 
 function remove_outside_nodes() {
@@ -2943,19 +3096,17 @@ function remove_outside_nodes() {
   if (GRAPH.__aff_outside__ == undefined) {
     console.error("Attempt to remove from outside nodes list before creation!");
   } else {
-    console.log(sel, GRAPH.__aff_outside__);
     for (let nid of sel) {
       let idx = GRAPH.__aff_outside__.indexOf(nid);
       if (idx >= 0) {
         GRAPH.__aff_outside__.splice(idx, 1);
       }
     }
-    console.log(sel, GRAPH.__aff_outside__);
     if (GRAPH.__aff_outside__.length < 2) {
       console.error("Removed too many outside nodes!");
     }
   }
-  set_affinity(GRAPH.nodes, GRAPH.dlinks);
+  set_affinity(GRAPH.nodes, GRAPH.links);
 }
 
 function add_inside_nodes() {
@@ -2975,7 +3126,7 @@ function add_inside_nodes() {
       }
     }
   }
-  set_affinity(GRAPH.nodes, GRAPH.dlinks);
+  set_affinity(GRAPH.nodes, GRAPH.links);
 }
 
 function remove_inside_nodes() {
@@ -2990,19 +3141,40 @@ function remove_inside_nodes() {
       }
     }
   }
-  set_affinity(GRAPH.nodes, GRAPH.dlinks);
+  set_affinity(GRAPH.nodes, GRAPH.links);
 }
 
 var SHOW_OUTSIDE_LINKS = false;
+var SHOW_INSIDE_LINKS = true;
+var SHOW_AFFINITY_LINK_LABELS = true;
 
 function toggle_outside_links(on) {
   if (on == undefined) {
-    on = document.getElementById("show_outside_links").checked;
+    on = !document.getElementById("show_outside_links").checked;
   }
 
   SHOW_OUTSIDE_LINKS = on;
   set_link_visibility();
 }
+
+function toggle_inside_links(on) {
+  if (on == undefined) {
+    on = !document.getElementById("show_inside_links").checked;
+  }
+
+  SHOW_INSIDE_LINKS = on;
+  set_link_visibility();
+}
+
+function toggle_affinity_edge_labels(on) {
+  if (on == undefined) {
+    on = document.getElementById("affinity_edge_labels").checked;
+  }
+
+  SHOW_AFFINITY_LINK_LABELS = on;
+  set_link_visibility();
+}
+
 
 function augment_graph(graph) {
   // Build lookup tables for nodes from IDs and links from source/target IDs:
@@ -3049,17 +3221,23 @@ function augment_graph(graph) {
 
   // Augment nodes:
   for (let node of graph.nodes) {
-    // Add total interactions:
-    node.interactions = node.initiated + node.received;
+    // (re?) compute initiated/received and interactions from dlinks
+    node.initiated = 0;
+    node.received = 0;
+    node.interactions = 0;
     // Find neighborhood:
     node.neighbors = 0;
     node.neighborhood = {};
     for (let link of graph.links) {
       if (link.source === node && link.target !== node) {
         node.neighbors += 1;
+        node.initiated += link.value;
+        node.interactions += link.value;
         node.neighborhood[link.target.id] = link.target;
       } else if (link.target === node && link.source !== node) {
         node.neighbors += 1;
+        node.received += link.value;
+        node.interactions += link.value;
         node.neighborhood[link.source.id] = link.source;
       }
     }
@@ -3171,18 +3349,27 @@ function ego_link_visibility(link, focus_node) {
 }
 
 function affinity_link_visibility(link, focus_node) {
-  if (!SHOW_OUTSIDE_LINKS) { // check setting first
-    if (
-      GRAPH.__aff_outside__.indexOf(link.source.id) >= 0
-   && GRAPH.__aff_outside__.indexOf(link.target.id) >= 0
-    ) {
-      return "hidden";
-    } // else cascade onwards to check selection etc.
-  }
-
   if (focus_node != undefined) {
     return link_touches(link, focus_node) ? "visible" : "hidden";
   } else {
+    if (!SHOW_OUTSIDE_LINKS) { // check setting first
+      if (
+        GRAPH.__aff_outside__.indexOf(link.source.id) >= 0
+     && GRAPH.__aff_outside__.indexOf(link.target.id) >= 0
+      ) {
+        return "hidden";
+      } // else cascade onwards to check selection etc.
+    }
+
+    if (!SHOW_INSIDE_LINKS) {
+      if (
+        GRAPH.__aff_inside__.indexOf(link.source.id) >= 0
+     && GRAPH.__aff_inside__.indexOf(link.target.id) >= 0
+      ) {
+        return "hidden";
+      } // else cascade onwards to check selection etc.
+    }
+
     if (SELECTED_NODES.size > 0) { // selection takes precedence
       return touches_selected(link) ? "visible": "hidden";
     } else { // nothing selected
@@ -3203,6 +3390,13 @@ function set_link_visibility(focus_node) {
       "visibility",
       d => affinity_link_visibility(d, focus_node)
     );
+    AFFINITY_LINKS.selectAll("text.edge-label")
+      .style(
+        "visibility",
+        d => affinity_link_visibility(d, focus_node) == "hidden"
+             ? "hidden"
+             : (SHOW_AFFINITY_LINK_LABELS ? "visible" : "hidden")
+      );
   }
 }
 
