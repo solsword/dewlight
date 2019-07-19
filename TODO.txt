@@ -22,7 +22,18 @@
 [X] Loose layout should be looser: force # of ticks at moderate alpha & restart
 [X] Affinity graphs
 [X] don't show dlinks in affinity graphs (now shows labeled links)
+[~] writeup of how the graph layout works
 
+[ ] node radius slider positioning for narrow screens
+[ ] custom help file for Cleves
+[ ] toggle in listing to allow filtering by visible nodes
+[ ] group assignment tool in visualizer!
+[ ] custom categories
+[ ] Why is main character not symbol "A"?
+[ ] Drag to select
+[ ] Make labels continuous with data somehow?
+[ ] More flexible neighbor limits in ego networks?
+[ ] Mme de Cleves Ego network limit has both links bug!
 [ ] Mme. Pontmercy in Miserables groups 8/5 affinity plot!
 [ ] error message when we can't find the graph data
 [ ] break hive layout ties AWAY from the origin?
@@ -31,9 +42,7 @@
     graphs?
 [ ] select groups from legend
 [ ] scatter plots
-[ ] writeup of how the graph layout works
 [ ] DOT format
-[ ] custom categories
 [ ] ego network outer edges
 [ ] side-by-side
 [ ] extra relationships

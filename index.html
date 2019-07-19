@@ -6,17 +6,27 @@
       dewlight graph visualizer
     </title>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
 
 body {
   font-size: 14pt;
   line-height: 20pt;
+  margin: 0pt;
+  padding: 0pt;
+  overflow: hidden;
+}
+
+#content {
   display: grid;
   grid-template-columns: 2fr 1fr;
   grid-template-rows: 20vh 80vh;
   grid-gap: 0pt;
   margin: 0pt;
   padding: 0pt;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
 }
 
 h1 {
@@ -37,6 +47,41 @@ h1 {
   grid-template-columns: 1fr;
   justify-items: center;
   align-items: center;
+}
+@media only screen and (max-width: 600px) {
+  body {
+    overflow: scroll;
+  }
+
+  #content {
+    display: block;
+    /*grid-template-columns: 1fr;*/
+    height: auto;
+    padding-top: 2em;
+    overflow: scroll;
+  }
+
+  #controls {
+    max-height: none !important;
+  }
+
+  #legend {
+    max-height: none !important;
+    height: auto !important;
+  }
+
+  #graphs {
+    width: 95vw;
+    margin: auto;
+  }
+
+  #sidebar {
+    max-height: none !important;
+  }
+
+  #sidebar-controls {
+    height: auto !important;
+  }
 }
 
 .graph {
@@ -254,7 +299,7 @@ a.help {
   margin: 0pt 3pt 0pt 3pt;
   padding: 0pt 0pt 2pt 0pt;
   border: 1pt solid black;
-  border-radius: 2pt;
+  border-radius: 3pt;
   display: inline-block;
   box-sizing: border-box;
   width: 1.1em;
@@ -264,7 +309,8 @@ a.help {
 
 a.help.wide {
   width: auto;
-  padding: 0pt 2pt 2pt 2pt;
+  height: auto;
+  padding: 0pt 2pt 0pt 2pt;
 }
 
 .UL {
@@ -273,324 +319,356 @@ a.help.wide {
   left: 0pt; /* WHY?!? */
   margin: 0pt;
   padding: 0pt;
+  background: white;
 }
 
 #help {
-  position: absolute;
-  width: 100%;
+  position: fixed;
+  width: 100vw;
+  height: 100vh;
+  overflow: scroll;
+  margin: 0pt;
+  box-sizing: border-box;
+  padding: 0pt;
   visibility: hidden;
-}
-
-#help h1,h2,h3,h4,h5,h6 {
-  text-align: center;
 }
 
 #unhelp {
   position: fixed;
   top: 4pt;
-  left: 0pt; /* WHY?!? */
+  left: 0pt;
+  margin: 0pt;
+  padding: 0pt;
+  padding-top: 0pt !important;
+  font-size: larger;
+  display: block;
 }
+
+#unhelp a {
+  background: white;
+}
+
+#help h1,h2,h3,h4,h5,h6 {
+  text-align: center;
+  padding-top: 8pt;
+}
+
+#help_content {
+  margin: 0pt auto 0pt auto;
+  background: white;
+  box-sizing: border-box;
+  border-left: 2pt solid black;
+  border-right: 2pt solid black;
+  padding: 2.5em;
+  max-width: 45em;
+  text-align: justify;
+}
+
+#clear_filter {
+  margin-left: 4pt;
+}
+
     </style>
   </head>
   <body>
     <!-- floating link to help:about -->
-    <h1 class="UL"><a class="help wide" href="#help:about">About</a></h1>
+    <h1 class="UL"><a class="help wide" href="#help:about">about</a></h1>
     <!-- help text (hidden but shown on -->
     <div id="help">
-      <a id="unhelp" class="help" href="#">Back</a>
+      <h1 id="unhelp"><a class="help wide" href="#">close help</a></h1>
       <!-- START OF HELP -->
-      <h1>Help</h1>
-      <h2><a id="help:about">About</a></h2>
-        <p>
-          Dewlight is a visualization tool for networks. It has multiple tools
-          for visualizing connections between nodes and their relationships to
-          each other. The visualization tools include:
-        </p>
-        <p>
-        At the top left, the controls area shows
-        <a href="#help:controls">global controls</a> and graph-specific
-        controls (described in the help sections for each type of graph).
-        </p>
-      <h2><a id="help:controls">Controls</a></h2>
-      <h2><a id="help:relationships">Relationships</a></h2>
-      <h2><a id="help:histograms">Histograms</a></h2>
-      <h2><a id="help:ego_network">Ego Network</a></h2>
-      <h2><a id="help:affinity_plot">Affinity Plot</a></h2>
-      <h2><a id="help:colors">Colors</a></h2>
-      <h2><a id="help:listing">Listing</a></h2>
+      <div id="help_content">
+        <a href="help.html" target="new">Open help page.</a>
+      </div>
       <!-- END OF HELP -->
     </div>
-    <!-- controls div in upper left -->
-    <div id="controls">
-      show <select id="graph_select" onchange="select_graph(this.value)">
-        <option selected="t" value="force">relationships</option>
-        <option value="ego">ego network</option>
-        <option value="affinity">affinity plot</option>
-        <option value="histogram">histograms</option>
-      </select>
-      |
-      <input
-       type="checkbox"
-       id="node_filter"
-       onclick="toggle_node_filter(this.checked)">
-      filter nodes
-      <br/>
-
-      <input
-       type="button"
-       value="clear selection"
-       onclick="clear_selection();">
-      |
-      mark <select id="mark_select" onchange="set_symbols(this.value)">
-        <option selected="t" value="important">important nodes</option>
-        <option value="all">all nodes</option>
-        <option value="none">none</option>
-      </select>
-      <br/>
-
-      <div id="fd_controls" class="graph_controls">
-        <h1 class="graph_label">
-          All Relationships
-          <a class="help" href="#help:relationships">?</a>
-        </h1>
-
-        hide
-        <input
-         type="checkbox"
-         onclick="toggle_link_visibility('minor', !this.checked)">
-        minor edges
-        <input
-         type="checkbox"
-         onclick="toggle_link_visibility('passive', !this.checked)">
-        passive edges
-        <br/>
-
-        <!--
-        <input
-         type="button"
-         value="shuffle"
-         onclick="shuffle()">
-        |
-        <input
-         type="button"
-         value="find optimum"
-         onclick="optimize_randomly()">
-        <img id="opt_spinner" src="res/loading.gif" alt="loading animation">
-        |
-        <input
-         type="button"
-         value="optimize"
-         onclick="optimize_positions(SIMULATION)">
-        |
-        -->
-        layout:
-        <select id="layout_select" onchange="impose_layout(this.value)">
-          <option value="strict">strict</option>
-          <option selected="t" value="loose">loose</option>
-          <option value="relaxed">relaxed</option>
-        </select>
-        |
-        <input
-         type="button"
-         value="reset layout"
-         onclick="impose_layout(document.getElementById('layout_select').value)"
-         >
-        |
-        <input
-         type="button"
-         value="relax further"
-         onclick="SIMULATION.alpha(MEDIUM_ENERGY).restart()">
-        <br/>
-        
-        <!--
-        energy: <span id="energy">?</span>
-        | best: <span id="best_energy">?</span>
-        <br/>
-        -->
-      </div>
-
-      <div id="hs_controls" class="graph_controls">
-        <h1 class="graph_label">
-          Histograms
-          <a class="help" href="#help:histograms">?</a>
-        </h1>
-
-        graph
-        <select
-         id="which_histogram"
-         onchange="set_bars(GRAPH.nodes);">
-          <option selected="t" value="initiated">initiated</option>
-          <option value="received">received</option>
-          <option value="interactions">initiated+received</option>
-          <option value="neighbors">neighbors</option>
+    <div id="content">
+      <!-- controls div in upper left -->
+      <div id="controls">
+        show <select id="graph_select" onchange="select_graph(this.value)">
+          <option selected="t" value="force">relationships</option>
+          <option value="ego">ego network</option>
+          <option value="affinity">affinity plot</option>
+          <option value="histogram">histograms</option>
         </select>
         |
         <input
          type="checkbox"
-         id="double_histogram"
-         checked="true"
-         onclick="set_bars(GRAPH.nodes); document.getElementById('extra_histogram').disabled = !this.checked;">
-        compare
-        <select
-         id="extra_histogram"
-         onchange="set_bars(GRAPH.nodes);">
-          <option value="initiated">initiated</option>
-          <option selected="t" value="received">received</option>
-          <option value="interactions">initiated+received</option>
-          <option value="neighbors">neighbors</option>
+         id="node_filter"
+         onclick="toggle_node_filter(this.checked)">
+        filter nodes
+        |
+        node radius
+        <input
+         type="range"
+         min="4"
+         max="20"
+         step="2"
+         value="10"
+         id="radius_slider"
+         onchange="set_node_radius(this.value)"
+         >
+        <br/>
+
+        <input
+         type="button"
+         value="clear selection"
+         onclick="clear_selection();">
+        |
+        mark <select id="mark_select" onchange="set_symbols(this.value)">
+          <option selected="t" value="important">important nodes</option>
+          <option value="all">all nodes</option>
+          <option value="none">none</option>
         </select>
         <br/>
 
-        <input
-         type="checkbox"
-         checked="true"
-         onclick="toggle_hist_collapse(this.checked)">
-        collapse values
-        <br/>
+        <div id="fd_controls" class="graph_controls">
+          <h1 class="graph_label">
+            All Relationships
+            <a class="help" href="#help:relationships">?</a>
+          </h1>
+
+          hide
+          <input
+           type="checkbox"
+           onclick="toggle_link_visibility('marginal', !this.checked)">
+          marginal edges
+          <input
+           type="checkbox"
+           onclick="toggle_link_visibility('passive', !this.checked)">
+          passive edges
+          <br/>
+
+          <!--
+          <input
+           type="button"
+           value="shuffle"
+           onclick="shuffle()">
+          |
+          <input
+           type="button"
+           value="find optimum"
+           onclick="optimize_randomly()">
+          <img id="opt_spinner" src="res/loading.gif" alt="loading animation">
+          |
+          <input
+           type="button"
+           value="optimize"
+           onclick="optimize_positions(SIMULATION)">
+          |
+          -->
+          layout:
+          <select id="layout_select" onchange="impose_layout(this.value)">
+            <option value="strict">strict</option>
+            <option selected="t" value="loose">loose</option>
+            <option value="relaxed">relaxed</option>
+          </select>
+          |
+          <input
+           type="button"
+           value="reset layout"
+           onclick="impose_layout(document.getElementById('layout_select').value)"
+           >
+          |
+          <input
+           type="button"
+           value="relax further"
+           onclick="SIMULATION.alpha(MEDIUM_ENERGY).restart()">
+          <br/>
+          
+          <!--
+          energy: <span id="energy">?</span>
+          | best: <span id="best_energy">?</span>
+          <br/>
+          -->
+        </div>
+
+        <div id="hs_controls" class="graph_controls">
+          <h1 class="graph_label">
+            Histograms
+            <a class="help" href="#help:histograms">?</a>
+          </h1>
+
+          graph
+          <select
+           id="which_histogram"
+           onchange="set_bars(GRAPH.nodes);">
+            <option selected="t" value="initiated">initiated</option>
+            <option value="received">received</option>
+            <option value="interactions">
+              interactions (initiated + received)
+            </option>
+            <option value="neighbors">neighbors</option>
+          </select>
+          |
+          <input
+           type="checkbox"
+           id="double_histogram"
+           checked="true"
+           onclick="set_bars(GRAPH.nodes); document.getElementById('extra_histogram').disabled = !this.checked;">
+          compare
+          <select
+           id="extra_histogram"
+           onchange="set_bars(GRAPH.nodes);">
+            <option value="initiated">initiated</option>
+            <option selected="t" value="received">received</option>
+            <option value="interactions">initiated+received</option>
+            <option value="neighbors">neighbors</option>
+          </select>
+          <br/>
+
+          <input
+           type="checkbox"
+           checked="true"
+           onclick="toggle_hist_collapse(this.checked)">
+          collapse values
+          <br/>
+        </div>
+
+        <div id="eg_controls" class="graph_controls">
+          <h1 class="graph_label">
+            Ego Network
+            <a class="help" href="#help:ego_network">?</a>
+          </h1>
+
+          viewing <span id="eg_name"></span>
+          |
+          <input
+           type="button"
+           id="eg_reselect"
+           onclick="set_ego(GRAPH.nodes, GRAPH.dlinks)"
+           value="switch to">
+          <span id="eg_next"></span><br/>
+
+          limit neighbors
+          <select id="eg_cutoff" onchange="set_ego(GRAPH.nodes, GRAPH.dlinks)">
+            <option selected="t" value="none">don't limit</option>
+            <option value="3">top 3</option>
+            <option value="5">top 5</option>
+            <option value="10">top 10</option>
+            <option value="15">top 15</option>
+            <option value="20">top 20</option>
+            <option value="30">top 30</option>
+            <option value="aff>1">&gt;1 interaction</option>
+            <option value="aff>2">&gt;2 interactions</option>
+            <option value="aff>3">&gt;3 interactions</option>
+            <option value="aff>5%">&gt;5% of highest</option>
+            <option value="aff>10%">&gt;10% of highest</option>
+            <option value="aff>25%">&gt;25% of highest</option>
+            <option value="aff>50%">&gt;50% of highest</option>
+            <option value="aff>75%">&gt;75% of highest</option>
+            <option value="received">has link to</option>
+            <option value="initiated">has link from</option>
+            <option value="responded">has both links</option>
+          </select>
+        </div>
+
+        <div id="af_controls" class="graph_controls">
+          <h1 class="graph_label">
+            Affinity Plot
+            <a class="help" href="#help:affinity_plot">?</a>
+          </h1>
+          <input
+           type="checkbox"
+           id="show_outside_links"
+           checked="t"
+           onclick="toggle_outside_links(!this.checked);"
+           > hide exterior links
+          |
+          <input
+           type="checkbox"
+           id="show_inside_links"
+           onclick="toggle_inside_links(!this.checked);"
+           > hide interior links
+          |
+          <input
+           type="checkbox"
+           id="affinity_edge_labels"
+           checked="t"
+           onclick="toggle_affinity_edge_labels(this.checked);"
+           > label edges
+          <br/>
+
+          update outside nodes
+          <input
+           type="button"
+           id="add_outside_nodes"
+           onclick="add_outside_nodes();"
+           value="~"
+           disabled="t"
+           >
+          <input
+           type="button"
+           id="remove_outside_nodes"
+           onclick="remove_outside_nodes();"
+           value="~"
+           disabled="t"
+           >
+          inside nodes
+          <input
+           type="button"
+           id="add_inside_nodes"
+           onclick="add_inside_nodes();"
+           value="~"
+           disabled="t"
+           >
+          <input
+           type="button"
+           id="remove_inside_nodes"
+           onclick="remove_inside_nodes();"
+           value="~"
+           disabled="t"
+           >
+        </div>
+
       </div>
-
-      <div id="eg_controls" class="graph_controls">
-        <h1 class="graph_label">
-          Ego Network
-          <a class="help" href="#help:ego_network">?</a>
-        </h1>
-
-        viewing <span id="eg_name"></span>
-        |
-        <input
-         type="button"
-         id="eg_reselect"
-         onclick="set_ego(GRAPH.nodes, GRAPH.dlinks)"
-         value="switch to">
-        <span id="eg_next"></span><br/>
-
-        limit neighbors
-        <select id="eg_cutoff" onchange="set_ego(GRAPH.nodes, GRAPH.dlinks)">
-          <option selected="t" value="none">don't limit</option>
-          <option value="3">top 3</option>
-          <option value="5">top 5</option>
-          <option value="10">top 10</option>
-          <option value="15">top 15</option>
-          <option value="20">top 20</option>
-          <option value="30">top 30</option>
-          <option value="aff>1">&gt;1 interaction</option>
-          <option value="aff>2">&gt;2 interactions</option>
-          <option value="aff>3">&gt;3 interactions</option>
-          <option value="aff>5%">&gt;5% of highest</option>
-          <option value="aff>10%">&gt;10% of highest</option>
-          <option value="aff>25%">&gt;25% of highest</option>
-          <option value="aff>50%">&gt;50% of highest</option>
-          <option value="aff>75%">&gt;75% of highest</option>
-          <option value="received">has link to</option>
-          <option value="initiated">has link from</option>
-          <option value="responded">has both links</option>
-        </select>
-      </div>
-
-      <div id="af_controls" class="graph_controls">
-        <h1 class="graph_label">
-          Affinity Plot
-          <a class="help" href="#help:affinity_plot">?</a>
-        </h1>
-        <input
-         type="checkbox"
-         id="show_outside_links"
-         checked="t"
-         onclick="toggle_outside_links(!this.checked);"
-         > hide exterior links
-        |
-        <input
-         type="checkbox"
-         id="show_inside_links"
-         onclick="toggle_inside_links(!this.checked);"
-         > hide interior links
-        |
-        <input
-         type="checkbox"
-         id="affinity_edge_labels"
-         checked="t"
-         onclick="toggle_affinity_edge_labels(this.checked);"
-         > label edges
-        <br/>
-
-        update outside nodes
-        <input
-         type="button"
-         id="add_outside_nodes"
-         onclick="add_outside_nodes();"
-         value="~"
-         disabled="t"
-         >
-        <input
-         type="button"
-         id="remove_outside_nodes"
-         onclick="remove_outside_nodes();"
-         value="~"
-         disabled="t"
-         >
-        inside nodes
-        <input
-         type="button"
-         id="add_inside_nodes"
-         onclick="add_inside_nodes();"
-         value="~"
-         disabled="t"
-         >
-        <input
-         type="button"
-         id="remove_inside_nodes"
-         onclick="remove_inside_nodes();"
-         value="~"
-         disabled="t"
-         >
-      </div>
-
-    </div>
-    <div id="legend">
-      <h1>
-        Colors
-        <a class="help" href="#help:colors">?</a>
-      </h1>
-      <div id="legend_entries">
-      </div>
-    </div>
-    <div id="graphs">
-      <svg id="force_directed" class="graph"></svg>
-      <svg id="histogram" class="graph"></svg>
-      <svg id="ego" class="graph"></svg>
-      <svg id="affinity" class="graph"></svg>
-    </div>
-    <div id="sidebar">
-      <div id="sidebar-controls">
+      <div id="legend">
         <h1>
-          Listing
-          <a class="help" href="#help:listing">?</a>
+          Colors
+          <a class="help" href="#help:colors">?</a>
         </h1>
-        <p>
-        sort by
-        <select id="listing_sort" onchange="update_listings(this.value)"/>
-          <option selected="t" value="default">default (by graph type)</option>
-          <option value="category">category (then name)</option>
-          <option value="name">name</option>
-          <option value="initiated">initiated</option>
-          <option value="received">received</option>
-          <option value="total">total (then initiated)</option>
-          <option value="neighbors">neighbors (then initiated)</option>
-        </select>
-        <br/>
-        find:
-        <input
-         type="text"
-         id="listing_filter"
-         oninput="filter_listings(this.value)"/><input
-         type="button"
-         value="clear"
-         onclick="this.previousSibling.value = ''; filter_listings('')"/>
-        </p>
+        <div id="legend_entries">
+        </div>
       </div>
-      <div id="listing">
+      <div id="graphs">
+        <svg id="force_directed" class="graph"></svg>
+        <svg id="histogram" class="graph"></svg>
+        <svg id="ego" class="graph"></svg>
+        <svg id="affinity" class="graph"></svg>
       </div>
-    </div>
+      <div id="sidebar">
+        <div id="sidebar-controls">
+          <h1>
+            Listing
+            <a class="help" href="#help:listing">?</a>
+          </h1>
+          <p>
+          sort by
+          <select id="listing_sort" onchange="update_listings(this.value)"/>
+            <option selected="t" value="default">default (by graph type)</option>
+            <option value="group">group (then name)</option>
+            <option value="name">name</option>
+            <option value="initiated">initiated</option>
+            <option value="received">received</option>
+            <option value="total">total (then initiated)</option>
+            <option value="neighbors">neighbors (then initiated)</option>
+          </select>
+          <br/>
+          find
+          <input
+           type="text"
+           id="listing_filter"
+           oninput="filter_listings(this.value)"/><input
+           type="button"
+           value="clear"
+           id="clear_filter"
+           onclick="this.previousSibling.value = ''; filter_listings('')"/>
+          </p>
+        </div>
+        <div id="listing">
+        </div>
+      </div>
+    </div> <!-- content -->
     <script src="d3/d3.v4.min.js"></script>
     <script type="text/javascript">
 
@@ -611,6 +689,10 @@ const VERY_LOW_ENERGY = 0.02;
 // ticks per period when cooling off the layout
 const COOLOFF_TICKS = 100;
 
+// Radius of nodes, adjusted by slider
+const BASE_RADIUS = 10;
+var NODE_RADIUS = BASE_RADIUS;
+
 var HIST = d3.select("#histogram");
 var HIST_CONTROLS = d3.select("#hs_controls");
 
@@ -620,12 +702,8 @@ var EGO_CONTROLS = d3.select("#eg_controls");
 var AFFINITY = d3.select("#affinity");
 var AFFINITY_CONTROLS = d3.select("#af_controls");
 
-// Constants that control the gap between fragments of directional edges:
-const DIR_EDGE_GAP = 0.05;
-const GAP_SIZE = 20;
-
 // Font size for symbols
-const SYMBOL_FONT_SIZE = 16;
+const SYMBOL_FONT_BASE_SIZE = 16;
 
 //var color = d3.scaleOrdinal(d3.schemeCategory20);
 var CAT_COLORS = d3.scaleOrdinal(d3.schemeCategory10);
@@ -881,9 +959,10 @@ function symbol_for(d) {
   return SYMBOL_MAP[d.id]
 }
 
-function font_size_for(d) {
+function font_size_for_symbol(d) {
   let sym = symbol_for(d);
-  return font_size_for_digits(sym, SYMBOL_FONT_SIZE, 0.7);
+  let fs = SYMBOL_FONT_BASE_SIZE * (NODE_RADIUS / BASE_RADIUS);
+  return font_size_for_digits(sym, fs, 0.7);
 }
 
 GRAPH_TYPE = "force";
@@ -939,6 +1018,9 @@ function select_graph(type) {
       viewport.scrollTop = SMALL_GRAPH_HEIGHT/2 - vp_height/2;
     }
   }
+
+  // Update NODE_RADIUS
+  set_node_radius(document.getElementById("radius_slider").value);
 
   // Actually (re)create the graph:
   if (type == "force") {
@@ -1433,7 +1515,7 @@ function hive_layout(nodes) {
     }
 
     // Update interactions of neighbors of placed node:
-    for (let nbid of Object.keys(node.neighborhood)) {
+    for (let nbid of node.neighborhood.values()) {
       let link = lookup_link(node.id, nbid);
       if (interactions.hasOwnProperty(nbid)) {
         interactions[nbid] += link.value;
@@ -1678,7 +1760,7 @@ function link_class(link) {
   } else if (link.source.group == 0 || link.target.group == 0) {
     return "passive";
   } else {
-    return "minor";
+    return "marginal";
   }
 }
 
@@ -1691,7 +1773,7 @@ function refresh_symbols() {
     NODES.selectAll("text.symbol").remove();
     NODES.append("text")
       .text(d => symbol_for(d))
-      .style("font-size", d => font_size_for(d))
+      .style("font-size", d => font_size_for_symbol(d))
       .classed("symbol", true)
       .attr('x', 0)
       .attr('y', 0)
@@ -1709,7 +1791,7 @@ function refresh_symbols() {
     EGO_NODES.selectAll("text.symbol").remove();
     EGO_NODES.append("text")
       .text(d => symbol_for(d))
-      .style("font-size", d => font_size_for(d))
+      .style("font-size", d => font_size_for_symbol(d))
       .classed("symbol", true)
       .attr('x', 0)
       .attr('y', 0)
@@ -1723,7 +1805,7 @@ function refresh_symbols() {
     AFFINITY_NODES.selectAll("text.symbol").remove();
     AFFINITY_NODES.append("text")
       .text(d => symbol_for(d))
-      .style("font-size", d => font_size_for(d))
+      .style("font-size", d => font_size_for_symbol(d))
       .classed("symbol", true)
       .attr('x', 0)
       .attr('y', 0)
@@ -1766,7 +1848,8 @@ function set_nodes_and_links(nodes, links) {
   // Add circles last so they sit on top of edges:  
   var circles = NODES.append("circle")
     .attr("fill", function(d) { return CAT_COLORS(d.group); })
-    .attr("r", 11)
+    .attr("r", NODE_RADIUS)
+    .style("stroke-width", Math.min(1.5, 1.5*(NODE_RADIUS/BASE_RADIUS)) + "pt")
     .style("cursor", "crosshair")
     .on("mouseover", hoverstarted)
     .on("mouseout", hoverended)
@@ -2471,6 +2554,9 @@ function edge_label_pos(link, get_elem) {
   return [src_pos[0] + vector[0] * sc, src_pos[1] + vector[1] * sc];
 }
 
+// Constant that controls the gap between fragments of directional edges:
+const GAP_SIZE = 14;
+
 function dir_edge_points(dlink, get_elem) {
   // Computes the edge points for a directional edge, given a function for
   // extracting a d3 element from a node (the provided directional link is
@@ -2660,7 +2746,8 @@ function set_ego(nodes, dlinks) {
 
   var circles = EGO_NODES.append("circle")
     .attr("fill", function(d) { return CAT_COLORS(d.group); })
-    .attr("r", 11)
+    .attr("r", NODE_RADIUS)
+    .style("stroke-width", Math.min(1.5, 1.5*(NODE_RADIUS/BASE_RADIUS)) + "pt")
     .style("cursor", "crosshair")
     .on("mouseover", hoverstarted)
     .on("mouseout", hoverended)
@@ -2771,7 +2858,8 @@ function set_ego(nodes, dlinks) {
     );
 
   // Node divs on the sidebar:
-  set_listings_nodes(visible_nodes);
+  //set_listings_nodes(visible_nodes);
+  set_listings_nodes(nodes);
 
   // Update symbols
   refresh_symbols();
@@ -2975,7 +3063,8 @@ function set_affinity(nodes, links) {
   // Add circles:
   var circles = AFFINITY_NODES.append("circle")
     .attr("fill", function(d) { return CAT_COLORS(d.group); })
-    .attr("r", 11)
+    .attr("r", NODE_RADIUS)
+    .style("stroke-width", Math.min(1.5, 1.5*(NODE_RADIUS/BASE_RADIUS)) + "pt")
     .style("cursor", "crosshair")
     .on("mouseover", hoverstarted)
     .on("mouseout", hoverended)
@@ -3054,10 +3143,23 @@ function set_affinity(nodes, links) {
     );
 
   var edge_titles = AFFINITY_LINKS.append("title")
-    .text(d => d.source.id + "→" + d.value + "→" + d.target.id);
+    .text(
+      function (d) {
+        let flink = lookup_dlink(d.source.id, d.target.id);
+        let rlink = lookup_dlink(d.target.id, d.source.id);
+        let fval = flink != undefined ? flink.value : 0;
+        let rval = rlink != undefined ? rlink.value : 0;
+        let s = d.value != 1 ? "s" : ""
+        return (
+          d.value + " interaction" + s + "\n"
+        + d.source.id + "→" + d.target.id + ":" + fval + "\n"
+        + d.target.id + "→" + d.source.id + ":" + rval
+        );
+      }
+    );
 
   // Node divs on the sidebar:
-  set_listings_nodes(GRAPH.nodes);
+  set_listings_nodes(nodes);
 
   // Update symbols
   refresh_symbols();
@@ -3227,18 +3329,22 @@ function augment_graph(graph) {
     node.interactions = 0;
     // Find neighborhood:
     node.neighbors = 0;
-    node.neighborhood = {};
-    for (let link of graph.links) {
-      if (link.source === node && link.target !== node) {
-        node.neighbors += 1;
+    node.neighborhood = new Set();
+    for (let link of graph.dlinks) {
+      if (link.source === node) {
         node.initiated += link.value;
         node.interactions += link.value;
-        node.neighborhood[link.target.id] = link.target;
-      } else if (link.target === node && link.source !== node) {
-        node.neighbors += 1;
+        if (link.target !== node && !node.neighborhood.has(link.target.id)) {
+          node.neighbors += 1;
+          node.neighborhood.add(link.target.id);
+        }
+      } else if (link.target === node) {
         node.received += link.value;
         node.interactions += link.value;
-        node.neighborhood[link.source.id] = link.source;
+        if (link.source !== node && !node.neighborhood.has(link.source.id)) {
+          node.neighbors += 1;
+          node.neighborhood.add(link.source.id);
+        }
       }
     }
   }
@@ -3301,7 +3407,7 @@ function dragended(d) {
 
 var SHOW_LINKS = {
   "major": true,
-  "minor": true,
+  "marginal": true,
   "passive": true,
 };
 var COMPLETE_LEGEND = false;
@@ -3808,16 +3914,60 @@ function update_listings(sort_by) {
               (b_fval > 0) + (b_rval > 0)
             )
          || d3.descending(a_rval, b_rval)
+         || d3.descending(a.group, b.group)
          || d3.ascending(a.id, b.id)
           );
+        } else if (GRAPH_TYPE == "affinity") { // sort by outside -> inside
+          if (GRAPH.__aff_outside__ != undefined) {
+            let oset = new Set(GRAPH.__aff_outside__);
+            let iset = new Set(GRAPH.__aff_inside__);
+            let a_oconn = 0;
+            let b_oconn = 0;
+            for (let link of GRAPH.links) {
+              if (link.source.id == a.id) {
+                if (oset.has(link.target.id)) {
+                  a_oconn += link.value;
+                }
+              } else if (link.target.id == a.id) {
+                if (oset.has(link.source.id)) {
+                  a_oconn += link.value;
+                }
+              }
+              if (link.source.id == b.id) {
+                if (oset.has(link.target.id)) {
+                  b_oconn += link.value;
+                }
+              } else if (link.target.id == b.id) {
+                if (oset.has(link.source.id)) {
+                  b_oconn += link.value;
+                }
+              }
+            }
+            return (
+              d3.descending(oset.has(a.id), oset.has(b.id)) // outside first
+           || d3.descending(iset.has(a.id), iset.has(b.id)) // then inside
+           || d3.descending(a_oconn, b_oconn) // then connections to outside
+           || d3.descending(a.interactions, b.interactions) // then total
+           || d3.descending(a.group, b.group) // then group
+           || d3.ascending(a.id, b.id) // then by ID
+            );
+          } else { // shouldn't happen; sort by total
+            return (
+              d3.descending(a.initiated + a.received, b.initiated + b.received)
+           || d3.descending(a.initiated, b.initiated)
+           || d3.descending(a.group, b.group)
+           || d3.ascending(a.id, b.id)
+            );
+          }
         } else { // default to sort-by-total
           return (
             d3.descending(a.initiated + a.received, b.initiated + b.received)
          || d3.descending(a.initiated, b.initiated)
+         || d3.descending(a.group, b.group)
          || d3.ascending(a.id, b.id)
           );
         }
-      } else if (sort_by == "category") {
+      } else if (sort_by == "group") {
         return (
           d3.descending(a.group, b.group)
        || d3.ascending(a.id, b.id)
@@ -3825,6 +3975,7 @@ function update_listings(sort_by) {
       } else if (sort_by == "name") {
         return (
           d3.ascending(a.id, b.id)
+       || d3.descending(a.group, b.group)
        || d3.descending(a.initiated + a.received, b.initiated + b.received)
         );
       } else if (sort_by == "initiated") {
@@ -3841,12 +3992,14 @@ function update_listings(sort_by) {
             d3.descending(+(a.id == EGO_CURRENT), +(b.id == EGO_CURRENT))
          || d3.descending(a_fval, b_fval)
          || d3.descending(a_rval, b_rval)
+         || d3.descending(a.group, b.group)
          || d3.ascending(a.id, b.id)
           );
         } else {
           return (
             d3.descending(a.initiated, b.initiated)
          || d3.descending(a.received, b.received)
+         || d3.descending(a.group, b.group)
          || d3.ascending(a.id, b.id)
           );
         }
@@ -3864,12 +4017,14 @@ function update_listings(sort_by) {
             d3.descending(+(a.id == EGO_CURRENT), +(b.id == EGO_CURRENT))
          || d3.descending(a_rval, b_rval)
          || d3.descending(a_fval, b_fval)
+         || d3.descending(a.group, b.group)
          || d3.ascending(a.id, b.id)
           );
         } else {
           return (
             d3.descending(a.received, b.received)
          || d3.descending(a.initiated, b.initiated)
+         || d3.descending(a.group, b.group)
          || d3.ascending(a.id, b.id)
           );
         }
@@ -3887,12 +4042,14 @@ function update_listings(sort_by) {
             d3.descending(+(a.id == EGO_CURRENT), +(b.id == EGO_CURRENT))
          || d3.descending(a_fval + a_rval, b_fval + b_rval)
          || d3.descending(a_fval, b_fval)
+         || d3.descending(a.group, b.group)
          || d3.ascending(a.id, b.id)
           );
         } else {
           return (
             d3.descending(a.initiated + a.received, b.initiated + b.received)
          || d3.descending(a.initiated, b.initiated)
+         || d3.descending(a.group, b.group)
          || d3.ascending(a.id, b.id)
           );
         }
@@ -3901,11 +4058,16 @@ function update_listings(sort_by) {
           d3.descending(a.neighbors, b.neighbors)
        || d3.descending(a.initiated, b.initiated)
        || d3.descending(a.initiated + a.received, b.initiated + b.received)
+       || d3.descending(a.group, b.group)
        || d3.ascending(a.id, b.id)
         );
       } else {
         console.warn("Invalid sort scheme: '" + sort_by + "'; defaulting.")
-        return d3.ascending(a.id, b.id);
+        return (
+          d3.ascending(a.id, b.id)
+       || d3.descending(a.group, b.group)
+       || d3.descending(a.initiated + a.received, b.initiated + b.received)
+        );
       }
     }
   );
@@ -3977,11 +4139,62 @@ function filter_listings(string) {
   });
 }
 
+function set_node_radius(val) {
+  NODE_RADIUS = val;
+  let node_groups = d3.selectAll(".nodes")
+  node_groups.selectAll("circle")
+    .attr("r", val)
+    .style("stroke-width", Math.min(1.5, 1.5*(NODE_RADIUS/BASE_RADIUS)) + "pt");
+  node_groups.selectAll("text.symbol").style(
+    "font-size", d => font_size_for_symbol(d)
+  );
+}
+
+function setup_help(help_html) {
+  d3.select("#help_content").html(help_html);
+}
+
+// Set up help links to show help:
+d3.selectAll("a.help")
+  .on(
+    "click",
+    function () {
+      d3.select("#help").style("visibility", "visible");
+    }
+  );
+d3.select("#unhelp")
+  .on(
+    "click",
+    function () {
+      d3.select("#help").style("visibility", "hidden");
+    }
+  );
+
+// In-line help HTML
+inline_help = undefined;
+if (inline_help != undefined) {
+  setup_help(inline_help);
+} else {
+  let help_file = "help.html"; // the default
+  let url = new URL(window.location.href);
+  let target = url.searchParams.get("h");
+  if (target) {
+    help_file = target;
+  }
+  d3.text(
+    help_file,
+    function(error, html) {
+      if (error) { throw error; }
+      setup_help(html);
+    }
+  );
+}
+
 // In-line graph data
 inline_data = undefined;
 
 // Finally, load the data file or use the in-line data:
-if (inline_data) {
+if (inline_data != undefined) {
   receive_data(inline_data);
 } else {
   let data_file = "data/example-graph.json"; // the default
@@ -3993,7 +4206,7 @@ if (inline_data) {
   d3.json(
     data_file,
     function(error, graph) {
-      if (error) throw error;
+      if (error) { throw error; }
       receive_data(graph)
     }
   );

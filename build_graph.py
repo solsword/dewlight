@@ -171,17 +171,20 @@ avg_init = sum(x["initiated"] for x in by_involvement)/len(by_involvement)
 group_by = "initiated"
 
 most = by_involvement[-1][group_by]
-min_thr = 10
-#min_thr = avg_init
+main_thr = most/2
+major_thr = most/3
+minor_thr = avg_init
+if minor_thr >= major_thr/2:
+  minor_thr = major_thr/2
 
 print(
-  "Main nodes must have {} more than {:.0f} connections.".format(
+  "Main nodes must have {} more than {:.1f} connections.".format(
     group_by,
     most/2
   )
 )
 print(
-  "Major nodes must have {} more than {:.0f} connections.".format(
+  "Major nodes must have {} more than {:.1f} connections.".format(
     group_by,
     most*(1/3)
   )
@@ -189,34 +192,34 @@ print(
 print(
   "Minor nodes must have {} more than {:.1f} connections.".format(
     group_by,
-    min_thr
+    minor_thr
   )
 )
 print(
-  "Marginal nodes must have {} more than {:.0f} connections.".format(
+  "Marginal nodes must have {} more than {:.1f} connections.".format(
     group_by,
     0
   )
 )
 print("Nodes who never {} a connection are Passive.".format(group_by))
-top_half = [node for node in by_involvement if node[group_by] > most/2]
-top_thirds = [node for node in by_involvement if node[group_by] > most*(1/3)]
-ten_plus = [node for node in by_involvement if node[group_by] >= min_thr]
-none = [node for node in by_involvement if node[group_by] == 0]
+main = [node for node in by_involvement if node[group_by] > main_thr]
+major = [node for node in by_involvement if node[group_by] > major_thr]
+minor = [node for node in by_involvement if node[group_by] > minor_thr]
+passive = [node for node in by_involvement if node[group_by] == 0]
 
 for node in GRAPH["nodes"]:
   node["group"] = 1
 
-for node in none:
+for node in passive:
   node["group"] = 0
 
-for node in ten_plus:
+for node in minor:
   node["group"] = 2
 
-for node in top_thirds:
+for node in major:
   node["group"] = 3
 
-for node in top_half:
+for node in main:
   node["group"] = 4
 
 GRAPH["groups"] = [

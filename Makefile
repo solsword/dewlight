@@ -16,9 +16,12 @@ show:
 .PHONY: all
 all: ${BUNDLES}
 
-out/%-bundle.html: data/%-graph.json index.html d3/d3.v4.min.js
-	./bundle.py $< index.html $@
+out/%-bundle.html: data/%-graph.json index.html help.html d3/d3.v4.min.js bundle.py
+	./bundle.py $< index.html help.html $@
 
 .PRECIOUS: data/%-graph.json
 data/%-graph.json: data/%.tsv build_graph.py
 	./build_graph.py $< $@
+
+help.html: help.md
+	pandoc -f markdown+smart $< --output=$@
