@@ -184,16 +184,16 @@ a:link,a:visited {
   stroke-opacity: 0.6;
 }
 
-.nodes circle {
+.nodes .symbol {
   stroke: #fff;
   stroke-width: 1.5pt;
 }
 
-.selected circle {
+.selected .symbol {
   stroke: #000;
 }
 
-text.symbol {
+text.identity {
   text-anchor: middle;
   dominant-baseline: central;
   font-size: 19px;
@@ -331,6 +331,7 @@ a.help.wide {
   box-sizing: border-box;
   padding: 0pt;
   visibility: hidden;
+  background-color: rgba(0, 0, 0, 0.3);
 }
 
 #unhelp {
@@ -373,7 +374,7 @@ a.help.wide {
   <body>
     <!-- floating link to help:about -->
     <h1 class="UL"><a class="help wide" href="#help:about">about</a></h1>
-    <!-- help text (hidden but shown on -->
+    <!-- help text (hidden but shown on click) -->
     <div id="help">
       <h1 id="unhelp"><a class="help wide" href="#">close help</a></h1>
       <!-- START OF HELP -->
@@ -396,18 +397,19 @@ a.help.wide {
          type="checkbox"
          id="node_filter"
          onclick="toggle_node_filter(this.checked)">
-        filter nodes
+        core groups only
         |
-        node radius
+        marker size
         <input
          type="range"
          min="4"
          max="20"
          step="2"
-         value="10"
-         id="radius_slider"
-         onchange="set_node_radius(this.value)"
+         value="12"
+         id="size_slider"
+         onchange="set_node_size(this.value)"
          >
+         <!-- Note: value here overrides NODE_RADIUS initial setting -->
         <br/>
 
         <input
@@ -415,11 +417,18 @@ a.help.wide {
          value="clear selection"
          onclick="clear_selection();">
         |
-        mark <select id="mark_select" onchange="set_symbols(this.value)">
-          <option selected="t" value="important">important nodes</option>
-          <option value="all">all nodes</option>
-          <option value="none">none</option>
+        mark <select id="mark_select" onchange="set_identities(this.value)">
+          <option selected="t" value="core">core nodes</option>
+          <option value="ALL">all nodes</option>
+          <option value="NONE">none</option>
         </select>
+        |
+        <input
+         type="checkbox"
+         id="node_transparency"
+         onclick="toggle_node_transparency(this.checked)">
+        transparency
+
         <br/>
 
         <div id="fd_controls" class="graph_controls">
@@ -431,11 +440,11 @@ a.help.wide {
           hide
           <input
            type="checkbox"
-           onclick="toggle_link_visibility('marginal', !this.checked)">
+           onclick="toggle_link_visibility('outside', !this.checked)">
           marginal edges
           <input
            type="checkbox"
-           onclick="toggle_link_visibility('passive', !this.checked)">
+           onclick="toggle_link_visibility('fringe', !this.checked)">
           passive edges
           <br/>
 
@@ -589,7 +598,7 @@ a.help.wide {
            > label edges
           <br/>
 
-          update outside nodes
+          update outer
           <input
            type="button"
            id="add_outside_nodes"
@@ -604,7 +613,8 @@ a.help.wide {
            value="~"
            disabled="t"
            >
-          inside nodes
+          |
+          update inner
           <input
            type="button"
            id="add_inside_nodes"
@@ -624,8 +634,8 @@ a.help.wide {
       </div>
       <div id="legend">
         <h1>
-          Colors
-          <a class="help" href="#help:colors">?</a>
+          Legend
+          <a class="help" href="#help:legend">?</a>
         </h1>
         <div id="legend_entries">
         </div>
@@ -672,8 +682,6 @@ a.help.wide {
     <script src="d3/d3.v4.min.js"></script>
     <script type="text/javascript">
 
-var FDG = d3.select("#force_directed");
-var FDG_CONTROLS = d3.select("#fd_controls");
 const LARGE_GRAPH_WIDTH = 1200;
 const LARGE_GRAPH_HEIGHT = 1200;
 const SMALL_GRAPH_WIDTH = 500;
@@ -691,7 +699,14 @@ const COOLOFF_TICKS = 100;
 
 // Radius of nodes, adjusted by slider
 const BASE_RADIUS = 10;
-var NODE_RADIUS = BASE_RADIUS;
+var NODE_RADIUS = 12;
+
+// Font size for identity
+const IDENTITY_FONT_BASE_SIZE = 16;
+
+// Global handles for graphs:
+var FDG = d3.select("#force_directed");
+var FDG_CONTROLS = d3.select("#fd_controls");
 
 var HIST = d3.select("#histogram");
 var HIST_CONTROLS = d3.select("#hs_controls");
@@ -702,19 +717,57 @@ var EGO_CONTROLS = d3.select("#eg_controls");
 var AFFINITY = d3.select("#affinity");
 var AFFINITY_CONTROLS = d3.select("#af_controls");
 
-// Font size for symbols
-const SYMBOL_FONT_BASE_SIZE = 16;
+// Category styles
+var CAT_COLOR_SCALE = d3.scaleOrdinal(d3.schemeCategory10);
 
-//var color = d3.scaleOrdinal(d3.schemeCategory20);
-var CAT_COLORS = d3.scaleOrdinal(d3.schemeCategory10);
-var HCOLORS = {
+var NODE_TRANSPARENCY = false;
+function CAT_COLORS(n) {
+  let cat_color = CAT_COLOR_SCALE(n);
+  let result = d3.rgb(cat_color);
+  if (NODE_TRANSPARENCY) {
+    result.opacity = 0.6;
+  }
+  return result;
+}
+
+function CAT_SHAPES(n) {
+  let shapes = [
+    "diamond",
+    "rounded",
+    "square",
+    "star_four",
+    "hexagon",
+    "star_five"
+  ];
+  n %= shapes.length;
+  if (n < 0) { n += shapes.length; }
+  return shapes[n];
+}
+
+// Histogram styles
+var HIST_COLORS = {
+  "initiated": "#ffc8e5",
+  "received": "#e5c8ff",
+  "interactions": "#e699e6",
+  "neighbors": "#c8e5ff"
+};
+
+var HIST_BG_COLORS = {
   "initiated": "#f40083",
   "received": "#8300f4",
   "interactions": "#970097",
   "neighbors": "#0085f4"
 };
 
-var SYMBOL_LISTS = {
+var HIST_SHADING = {
+  "initiated": "fwd_diag",
+  "received": "back_diag",
+  "interactions": "cross",
+  "neighbors": "waves",
+}
+
+// Identity label variables
+var IDENTITY_LISTS = {
   "Korean": "ㅁㄴㅇㅂㄷㅈㄱㅃㄸㅉㄲㅍㅌㅊㅋㅅㅎㅆㄹ",
   "Greek": "αβξδεφγθικλμνοπψρστυωχηζ",
   "English": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
@@ -722,17 +775,18 @@ var SYMBOL_LISTS = {
   "Devangari": "अइउऋऌएओकखगघङहचछजझञयशटठडढणरषतथदधनलसपफबभमव",
   "Japanese": "一二三四五六七八九十上中下正日大年会人本月長国出生子分東行同今高金時手見市力米自前円合立内事社者地京間田体学目後新明方部心民対主代言小思山実入回場野開万全定家北問話文動度県水安氏和政保表道相意発不党",
 };
-var DEFAULT_SYMBOL_SET = "English";
+var DEFAULT_IDENTITY_SET = "English";
 var GROUP_MAP = {
   //0: "Japanese",
   //1: "Devangari",
-  0: "English",
-  1: "English",
-  2: "English",
-  3: "English",
-  4: "English",
+  "Main": "English",
+  "Major": "English",
+  "Minor": "English",
+  "Marginal": "English",
+  "Special": "English",
+  "Nonce": "English",
 }
-var SYMBOL_MAP = {};
+var IDENTITY_MAP = {};
 
 function zh_digit(d) {
   if (d == "0") {
@@ -802,18 +856,18 @@ function zh_numeral(digits, place) {
   }
 }
 
-function nth_symbol(group, n) {
+function nth_identity(group, n) {
   let ln = GROUP_MAP[group];
   if (ln == undefined) {
-    GROUP_MAP[group] = DEFAULT_SYMBOL_SET;
-    ln = DEFAULT_SYMBOL_SET;
+    GROUP_MAP[group] = DEFAULT_IDENTITY_SET;
+    ln = DEFAULT_IDENTITY_SET;
   }
   if (ln == "Numeric") {
     return "" + (n+1);
   } else if (ln == "Numeric中文") {
     return zh_numeral("" + (n + 1));
   } else {
-    let sl = SYMBOL_LISTS[ln];
+    let sl = IDENTITY_LISTS[ln];
     let result = "";
     while (n >= sl.length) {
       let div = Math.floor(n / sl.length);
@@ -827,9 +881,11 @@ function nth_symbol(group, n) {
 }
 
 function automap_groups(data) {
+  // Automatically assign different kinds of identity symbols to different
+  // groups. 
   let group_sizes = {};
-  let by_size = Object.keys(SYMBOL_LISTS).sort(
-    x, y => SYMBOL_LISTS[x].length - SYMBOL_LISTS[y].length
+  let by_size = Object.keys(IDENTITY_LISTS).sort(
+    x, y => IDENTITY_LISTS[x].length - IDENTITY_LISTS[y].length
   );
   GROUP_MAP = {}
 
@@ -843,19 +899,19 @@ function automap_groups(data) {
     }
   }
 
-  // Figure out the first symbol list that's big enough for each group:
+  // Figure out the first identity list that's big enough for each group:
   let groups = Object.keys(GROUP_MAP);
   for (let gid of groups) {
     while (
       GROUP_MAP[gid] < by_size.length
-   && SYMBOL_LISTS[by_size[GROUP_MAP[gid]]].length < group_sizes[gid]
+   && IDENTITY_LISTS[by_size[GROUP_MAP[gid]]].length < group_sizes[gid]
    ) {
       GROUP_MAP[gid] += 1;
     }
     if (GROUP_MAP[gid] >= by_size.length) {
       console.warn(
         "Group of size " + group_sizes[gid] + " is too large for all available "
-      + "symbol lists."
+      + "identity lists."
       );
       GROUP_MAP[gid] -= 1;
     }
@@ -874,7 +930,7 @@ function automap_groups(data) {
     }
   }
 
-  // Separate symbol assignment as much as possible:
+  // Separate identity assignment as much as possible:
   for (let i = 0; i < usage.length; ++i) {
     let overlap = usage[i];
     if (overlap != undefined && overlap > 1) {
@@ -907,62 +963,117 @@ function automap_groups(data) {
     }
   }
 
-  // Re-express group map in terms of SYMBOL_LISTS keys:
+  // Re-express group map in terms of IDENTITY_LISTS keys:
   for (g of groups) {
     GROUP_MAP[g] = by_size[GROUP_MAP[g]];
   }
 
 }
 
-function set_symbols(group) {
-  assign_auto(GRAPH.nodes, group);
-  refresh_symbols();
+function set_identities(show_only) {
+  assign_auto(GRAPH.nodes, show_only);
+  refresh_identities();
 }
 
-function assign_auto(nodes, group) {
-  if (group == undefined) {
-    group = document.getElementById("mark_select").value;
+function assign_auto(nodes, show_only) {
+  if (show_only == undefined) {
+    show_only = document.getElementById("mark_select").value;
   }
-  if (group == "important") {
-    assign_symbols(GRAPH.nodes, 2);
-  } else if (group == "all") {
-    assign_symbols(GRAPH.nodes);
-  } else if (group == "none") {
-    assign_symbols(GRAPH.nodes, 5);
+  if (show_only == "ALL") {
+    assign_identities(GRAPH.nodes);
+  } else if (show_only == "NONE") {
+    assign_identities(GRAPH.nodes, []); // empty tag list prevents matches
+  } else {
+    assign_identities(GRAPH.nodes, [ show_only ]);
   }
 }
 
-function assign_symbols(data, limit_groups) {
-  // Assign symbols to each data ID using per-group symbol lists:
+function group_has_tag(group_id, tag) {
+  return group_has_any_tag(group_id, [ tag ]);
+}
+
+function group_has_any_tag(group_id, tags_list) {
+  for (let group_info of GRAPH.groups) {
+    if (group_info.id == group_id) {
+      for (let tag of tags_list) {
+        if (group_info.tags.includes(tag)) {
+          return true;
+        }
+      }
+      return false;
+    }
+  }
+  console.error("Group '" + group_id + "' is not listed in the graph!");
+  return false;
+}
+
+function group_index(group_id) {
+  if (GRAPH) {
+    let group_objs = GRAPH.groups;
+    for (let i = 0; i < group_objs.length; ++i) {
+      if (group_objs[i].id == group_id) {
+        return i;
+      }
+    }
+    console.warn("Unindexed group: '" + group_id + "'");
+    return -1;
+  } else {
+    return -1;
+  }
+}
+
+function color_for_group(group_id) {
+  return CAT_COLORS(group_index(group_id));
+}
+
+function solid_color_for_group(group_id) {
+  return CAT_COLOR_SCALE(group_index(group_id));
+}
+
+function shape_for_group(group_id) {
+  return CAT_SHAPES(group_index(group_id));
+}
+
+function assign_identities(data, limit_groups) {
+  // Assign identities to each data ID using per-group identity lists:
   let current = {};
+  // Identities are assigned based on total interactions, then initiations,
+  // then ID:
   let sorted = [...data].sort(
     (a, b) => (
-      d3.descending(a.initiated, b.initiated)
-   || d3.descending(a.received, b.received)
+      d3.descending(a.initiated + a.received, b.initiated + b.received)
+   || d3.descending(a.initiated, b.initiated)
    || d3.ascending(a.id, b.id)
     )
   );
   for (let d of sorted) {
-    if (limit_groups && d.group < limit_groups) {
-      SYMBOL_MAP[d.id] = "";
+    if (
+        limit_groups != undefined
+     && !group_has_any_tag(d.group, limit_groups)
+    ) {
+      IDENTITY_MAP[d.id] = "";
       continue;
     }
     let key = GROUP_MAP[d.group];
+    if (key == undefined) {
+      GROUP_MAP[d.group] = DEFAULT_IDENTITY_SET;
+      key = DEFAULT_IDENTITY_SET;
+    }
     let cur = current[key] || 0;
-    SYMBOL_MAP[d.id] = nth_symbol(d.group, cur);
+    IDENTITY_MAP[d.id] = nth_identity(d.group, cur);
     current[key] = cur + 1;
   }
 }
 
 
-function symbol_for(d) {
-  return SYMBOL_MAP[d.id]
+function identity_for(d) {
+  return IDENTITY_MAP[d.id]
 }
 
-function font_size_for_symbol(d) {
-  let sym = symbol_for(d);
-  let fs = SYMBOL_FONT_BASE_SIZE * (NODE_RADIUS / BASE_RADIUS);
-  return font_size_for_digits(sym, fs, 0.7);
+function font_size_for_identity(d) {
+  let id = identity_for(d);
+  let fs = IDENTITY_FONT_BASE_SIZE * (NODE_RADIUS / BASE_RADIUS);
+  return font_size_for_digits(id, fs, 0.7);
 }
 
 GRAPH_TYPE = "force";
@@ -1020,7 +1131,7 @@ function select_graph(type) {
   }
 
   // Update NODE_RADIUS
-  set_node_radius(document.getElementById("radius_slider").value);
+  set_node_size(document.getElementById("size_slider").value);
 
   // Actually (re)create the graph:
   if (type == "force") {
@@ -1052,7 +1163,7 @@ function set_legend(type) {
       }
     }
 
-    let groups = GRAPH.groups.filter((x, i) => in_use.indexOf(i) >= 0);
+    let groups = GRAPH.groups.filter((x, i) => in_use.indexOf(x.id) >= 0);
 
     var legend = d3.select("#legend_entries");
     legend.selectAll("div").remove();
@@ -1060,23 +1171,36 @@ function set_legend(type) {
       .data(groups)
       .enter().append("div");
 
-    legend_entry.append("span")
-      .text(" ")
+    let legend_symbol = legend_entry.append("svg")
       .classed("swatch", true)
-      .style("background-color", (d, i) => CAT_COLORS(i));
 
-    legend_entry.append("span").text(d => d);
+    let symbol_path = legend_symbol.append("path")
+      .classed("symbol", true)
+      .attr(
+        "d",
+        d => symbol_path_data([8, 8], 6, shape_for_group(d.id))
+      )
+      .attr("fill", d => color_for_group(d.id))
+
+    legend_entry.append("span").text(d => d.id);
   } else if (type == "histogram") {
-    var legend = d3.select("#legend_entries");
+    let legend = d3.select("#legend_entries");
     legend.selectAll("div").remove();
-    var legend_entry = legend.selectAll("div")
-      .data(Object.keys(HCOLORS))
+    let legend_entry = legend.selectAll("div")
+      .data(Object.keys(HIST_COLORS))
       .enter().append("div");
 
-    legend_entry.append("span")
-      .text(" ")
+    let legend_symbol = legend_entry.append("svg")
       .classed("swatch", true)
-      .style("background-color", (d, i) => HCOLORS[d]);
+
+    add_pattern_defs(legend_symbol)
+
+    legend_symbol.append("rect")
+      .attr("x", 0)
+      .attr("y", 0)
+      .attr("width", 24)
+      .attr("height", 24)
+      .attr("fill", d => "url(#" + d + "-pattern)")
 
     legend_entry.append("span").text(d => d);
   } else {
@@ -1207,8 +1331,8 @@ separation_force = d3.forceManyBody()
 
 bubble_force = forceBubble()
   .target([LARGE_GRAPH_WIDTH/2, LARGE_GRAPH_HEIGHT/2])
-  .radius(d => d.group == 0 ? 240 : 160)
-  .strength(d => d.group >= 2 ? 0 : 0.4);
+  .radius(d => group_has_tag(d.group, "fringe") ? 240 : 160)
+  .strength(d => group_has_any_tag(d.group, [ "fringe", "outside" ]) ? 0.4 : 0);
 
 gather_force = forceBubble()
   .target([LARGE_GRAPH_WIDTH/2, LARGE_GRAPH_HEIGHT/2])
@@ -1541,6 +1665,26 @@ function hive_layout(nodes) {
       let ints = interactions[node.id];
       let tot = node.initiated + node.received;
       let nbs = node.neighbors;
+      // TODO: variable to switch these cases?
+      if (best_any == undefined || tot > best_any) {
+        return true;
+      } else if (tot == best_any) {
+        if (best_neighbors == undefined || nbs > best_neighbors) {
+        } else if (nbs == best_neighbors) {
+          if (
+              result == undefined
+           || group_index(node.group) > group_index(result.group)
+          ) {
+            return true;
+          } else if (node.group == result.group) {
+            if (d3.ascending(node.id, result.id) > 0) { // TODO: Check order?
+              return true;
+            }
+          }
+        }
+      }
+      /*
+       * This version only counts interactions with nodes already placed.
       if (best == undefined || ints > best) {
         return true;
       } else if (ints == best) {
@@ -1559,6 +1703,7 @@ function hive_layout(nodes) {
           }
         }
       }
+      */
       // fall out: we're not better
       return false;
     }
@@ -1755,26 +1900,32 @@ var AFFINITY_NODES_GROUP = AFFINITY.append("g").attr("class", "nodes");
 var LISTING = d3.select("#listing")
 
 function link_class(link) {
-  if (link.source.group >= 2 && link.target.group >= 2) {
-    return "major";
-  } else if (link.source.group == 0 || link.target.group == 0) {
-    return "passive";
+  if (
+      group_has_tag(link.source.group, "core")
+   && group_has_tag(link.target.group, "core")
+  ) {
+    return "core";
+  } else if (
+      group_has_tag(link.source.group, "fringe")
+   || group_has_tag(link.target.group, "fringe")
+  ) {
+    return "fringe";
   } else {
-    return "marginal";
+    return "outside";
   }
 }
 
-function refresh_symbols() {
-  // Updates symbols using the current symbol assignment to update the
-  // necessary SVG elements.
+function refresh_identities() {
+  // Updates identity symbols using the current identity assignment to update
+  // the necessary SVG elements.
 
   // Force-directed graph
   if (NODES) {
-    NODES.selectAll("text.symbol").remove();
+    NODES.selectAll("text.identity").remove();
     NODES.append("text")
-      .text(d => symbol_for(d))
-      .style("font-size", d => font_size_for_symbol(d))
-      .classed("symbol", true)
+      .text(d => identity_for(d))
+      .style("font-size", d => font_size_for_identity(d))
+      .classed("identity", true)
       .attr('x', 0)
       .attr('y', 0)
       .on("mouseover", hoverstarted)
@@ -1788,11 +1939,11 @@ function refresh_symbols() {
 
   // Ego graph
   if (EGO_NODES) {
-    EGO_NODES.selectAll("text.symbol").remove();
+    EGO_NODES.selectAll("text.identity").remove();
     EGO_NODES.append("text")
-      .text(d => symbol_for(d))
-      .style("font-size", d => font_size_for_symbol(d))
-      .classed("symbol", true)
+      .text(d => identity_for(d))
+      .style("font-size", d => font_size_for_identity(d))
+      .classed("identity", true)
       .attr('x', 0)
       .attr('y', 0)
       .on("mouseover", hoverstarted)
@@ -1802,11 +1953,11 @@ function refresh_symbols() {
 
   // Affinity graph
   if (AFFINITY_NODES) {
-    AFFINITY_NODES.selectAll("text.symbol").remove();
+    AFFINITY_NODES.selectAll("text.identity").remove();
     AFFINITY_NODES.append("text")
-      .text(d => symbol_for(d))
-      .style("font-size", d => font_size_for_symbol(d))
-      .classed("symbol", true)
+      .text(d => identity_for(d))
+      .style("font-size", d => font_size_for_identity(d))
+      .classed("identity", true)
       .attr('x', 0)
       .attr('y', 0)
       .on("mouseover", hoverstarted)
@@ -1815,12 +1966,12 @@ function refresh_symbols() {
   }
 
   // Sidebar
-  LISTINGS.select("span.symbol")
-    .text(function (d) { return symbol_for(d); });
+  LISTINGS.select("span.identity")
+    .text(function (d) { return identity_for(d); });
 }
 
 function set_nodes_and_links(nodes, links) {
-  // Assign symbols:
+  // Assign identity:
   assign_auto(nodes);
 
   // Note: order that we add things here doesn't matter because they all go
@@ -1845,10 +1996,15 @@ function set_nodes_and_links(nodes, links) {
       );
     });
 
-  // Add circles last so they sit on top of edges:  
-  var circles = NODES.append("circle")
-    .attr("fill", function(d) { return CAT_COLORS(d.group); })
-    .attr("r", NODE_RADIUS)
+  // Add symbols last so they sit on top of edges:  
+  // TODO: Array bounds & wrapping!
+  var symbols = NODES.append("path")
+    .classed("symbol", true)
+    .attr(
+      "d",
+      d => symbol_path_data([0, 0], NODE_RADIUS, shape_for_group(d.group))
+    )
+    .attr("fill", d => color_for_group(d.group))
     .style("stroke-width", Math.min(1.5, 1.5*(NODE_RADIUS/BASE_RADIUS)) + "pt")
     .style("cursor", "crosshair")
     .on("mouseover", hoverstarted)
@@ -1948,7 +2104,7 @@ function set_nodes_and_links(nodes, links) {
   // Node divs on the sidebar:
   set_listings_nodes(nodes);
 
-  refresh_symbols();
+  refresh_identities();
 
   function ticked() {
     edges
@@ -2031,7 +2187,7 @@ function set_bars(data, above, below) {
       plot = document.getElementById("which_histogram").value;
     }
   }
-  // Assign symbols:
+  // Assign identities:
   assign_auto(data);
 
   if (plot == undefined) {
@@ -2045,12 +2201,12 @@ function set_bars(data, above, below) {
 
   // Compute selected bars:
   let sel = {};
-  for (let prp of Object.keys(HCOLORS)) {
+  for (let prp of Object.keys(HIST_COLORS)) {
     sel[prp] = new Set();
   }
   let sel_data = data.filter(d => SELECTED_NODES.has(d.id));
   for (let d of sel_data) {
-    for (let prp of Object.keys(HCOLORS)) {
+    for (let prp of Object.keys(HIST_COLORS)) {
       sel[prp].add(d[prp]);
     }
   }
@@ -2164,13 +2320,13 @@ function set_bars(data, above, below) {
     BARS
       .classed(first, true)
       .classed("selected", d => sel.initiated.has(d[0]))
-      .attr('fill', HCOLORS[first])
+      .attr('fill', "url(#" + first + "-pattern)")
       .attr('height', d => bar_height(d[1][0]));
   } else {
     BARS
       .classed(plot, true)
       .classed("selected", d => sel[plot].has(d[0]))
-      .attr('fill', HCOLORS[plot])
+      .attr('fill', "url(#" + plot + "-pattern)")
       .attr('height', d => bar_height(d[1]));
   }
 
@@ -2278,7 +2434,7 @@ function set_bars(data, above, below) {
       .attr('width', bar_width - bar_width/10)
       .attr('height', d => bar_height(d[1][1]))
       .attr('y', (hist_height - 30)/2 + 30)
-      .attr('fill', HCOLORS[second])
+      .attr('fill', "url(#" + second + "-pattern)")
       .on(
         "click",
         function (d) {
@@ -2496,17 +2652,22 @@ function ego_layout_position(focus, node, visible_nodes) {
   let s_width = +EGO.node().getBoundingClientRect().width;
   let s_height = +EGO.node().getBoundingClientRect().height;
   let dim = Math.max(1, Math.min(s_width, s_height));
+  let visible_ranks = visible_nodes
+    .filter(n => n.__ego_rank__ != undefined)
+    .map(n => n.__ego_rank__.rank);
+  visible_ranks.sort((a, b) => a - b);
   if (node === focus) {
     return [s_width / 2, s_height / 2];
   } else if (node.__ego_rank__ != undefined) {
+    let this_visible_rank = visible_ranks.indexOf(node.__ego_rank__.rank);
     let theta = 0;
     let incr = 2*Math.PI / (visible_nodes.length-1);
     let aff = node.__ego_rank__.affinity;
     let max = EGO_RANKING[0].affinity;
     let r = (dim*.47) * (1 - (aff / max) / 2);
     return [
-      s_width / 2 + Math.cos(theta + incr * node.__ego_rank__.rank) * r,
-      s_height / 2 + Math.sin(theta + incr * node.__ego_rank__.rank) * r
+      s_width / 2 + Math.cos(theta + incr * this_visible_rank) * r,
+      s_height / 2 + Math.sin(theta + incr * this_visible_rank) * r
     ];
   } else {
     // This node isn't ranked:
@@ -2636,6 +2797,19 @@ function filter_ego_node(node, cutoff) {
   }
 }
 
+function ego_sort(a, b) {
+  return (
+    d3.descending(a.affinity, b.affinity)
+ || d3.descending(
+      (a.initiated > 0) + (a.received > 0),
+      (b.initiated > 0) + (b.received > 0)
+    )
+ || d3.descending(a.initiated, b.initiated)
+ || d3.descending(group_index(a.node.group), group_index(b.node.group))
+ || d3.ascending(a.node.id, b.node.id)
+  );
+}
+
 function set_ego(nodes, dlinks) {
   // Sets up the ego graph, resetting the selection to be a single node (the
   // first one that was selected if several are now, or the most-interacting
@@ -2646,7 +2820,7 @@ function set_ego(nodes, dlinks) {
   var s_width = +EGO.node().getBoundingClientRect().width;
   var s_height = +EGO.node().getBoundingClientRect().height;
 
-  // Assign symbols:
+  // Assign identity:
   assign_auto(nodes);
 
   // Get selected node:
@@ -2656,7 +2830,7 @@ function set_ego(nodes, dlinks) {
   // Set controls:
   d3.select("#eg_name")
     .text(focus_node.id)
-    .style("color", CAT_COLORS(focus_node.group));
+    .style("color", color_for_group(focus_node.group));
   d3.select("#eg_reselect").node().disabled = true;
   d3.select("#eg_next")
     .text(focus_node.id)
@@ -2676,7 +2850,7 @@ function set_ego(nodes, dlinks) {
           "initiated": olink != undefined ? olink.value : 0,
           "received": ilink != undefined ? ilink.value : 0,
           "node": node,
-          "rank": EGO_RANKING.length
+          "rank": 0
         };
         EGO_RANKING.push(rank);
         node.__ego_rank__ = rank;
@@ -2685,17 +2859,7 @@ function set_ego(nodes, dlinks) {
   }
 
   // Sort in descending order by affinity scores:
-  EGO_RANKING = EGO_RANKING.sort(
-    (a, b) => (
-      d3.descending(a.affinity, b.affinity)
-   || d3.descending(
-        (a.initiated > 0) + (a.received > 0),
-        (b.initiated > 0) + (b.received > 0)
-      )
-   || d3.descending(a.initiated, b.initiated)
-   || d3.ascending(a.node.id, b.node.id)
-    )
-  );
+  EGO_RANKING = EGO_RANKING.sort(ego_sort);
 
   let r = 0;
   for (let rank of EGO_RANKING) {
@@ -2744,9 +2908,13 @@ function set_ego(nodes, dlinks) {
     )
     .classed("selected", d => SELECTED_NODES.has(d.id));
 
-  var circles = EGO_NODES.append("circle")
-    .attr("fill", function(d) { return CAT_COLORS(d.group); })
-    .attr("r", NODE_RADIUS)
+  var circles = EGO_NODES.append("path")
+    .classed("symbol", true)
+    .attr(
+      "d",
+      d => symbol_path_data([0, 0], NODE_RADIUS, shape_for_group(d.group))
+    )
+    .attr("fill", d => color_for_group(d.group))
     .style("stroke-width", Math.min(1.5, 1.5*(NODE_RADIUS/BASE_RADIUS)) + "pt")
     .style("cursor", "crosshair")
     .on("mouseover", hoverstarted)
@@ -2791,7 +2959,7 @@ function set_ego(nodes, dlinks) {
     .classed("diredge-label", true)
     .attr("x", d => dir_edge_points(d, x => x.__ego_node__).xe)
     .attr("y", d => dir_edge_points(d, x => x.__ego_node__).ye)
-    .style("font-size", d => font_size_for_digits(d.value, 15, 0.85))
+    .style("font-size", d => font_size_for_digits(d.value, 15, 1.0))
     .text(d => d.value);
 
   // node labels
@@ -2861,8 +3029,8 @@ function set_ego(nodes, dlinks) {
   //set_listings_nodes(visible_nodes);
   set_listings_nodes(nodes);
 
-  // Update symbols
-  refresh_symbols();
+  // Update identities
+  refresh_identities();
 }
 
 function set_listings_nodes(nodes) {
@@ -2894,7 +3062,7 @@ function affinity_layout_position(graph, outside, node, outside_set, radius) {
   }
 
   if (radius == undefined) {
-    radius = 0.95;
+    radius = 0.92;
   }
 
   // Remember results:
@@ -2996,7 +3164,7 @@ function set_affinity(nodes, links) {
     }
   );
 
-  // Assign symbols:
+  // Assign identity:
   assign_auto(nodes);
 
   // Sort outside nodes by interactions -> initiated
@@ -3061,9 +3229,13 @@ function set_affinity(nodes, links) {
     });
 
   // Add circles:
-  var circles = AFFINITY_NODES.append("circle")
-    .attr("fill", function(d) { return CAT_COLORS(d.group); })
-    .attr("r", NODE_RADIUS)
+  var circles = AFFINITY_NODES.append("path")
+    .classed("symbol", true)
+    .attr(
+      "d",
+      d => symbol_path_data([0, 0], NODE_RADIUS, shape_for_group(d.group))
+    )
+    .attr("fill", d => color_for_group(d.group))
     .style("stroke-width", Math.min(1.5, 1.5*(NODE_RADIUS/BASE_RADIUS)) + "pt")
     .style("cursor", "crosshair")
     .on("mouseover", hoverstarted)
@@ -3098,7 +3270,7 @@ function set_affinity(nodes, links) {
     .classed("edge-label", true)
     .attr("x", d => edge_label_pos(d, x => x.__aff_node__)[0])
     .attr("y", d => edge_label_pos(d, x => x.__aff_node__)[1])
-    .style("font-size", d => font_size_for_digits(d.value, 15, 0.85))
+    .style("font-size", d => font_size_for_digits(d.value, 15, 1.0))
     .text(d => d.value);
 
   // node labels
@@ -3161,8 +3333,8 @@ function set_affinity(nodes, links) {
   // Node divs on the sidebar:
   set_listings_nodes(nodes);
 
-  // Update symbols
-  refresh_symbols();
+  // Update identities
+  refresh_identities();
 
   // Update visibility from controls:
   toggle_outside_links();
@@ -3356,7 +3528,7 @@ function receive_data(graph) {
 
   // Lock down colors so they don't depend on which view we enter first:
   for (let node of graph.nodes) {
-    CAT_COLORS(node.group);
+    color_for_group(node.group);
   }
 
   // must happen pre-augment; augments result
@@ -3406,9 +3578,9 @@ function dragended(d) {
 }
 
 var SHOW_LINKS = {
-  "major": true,
-  "marginal": true,
-  "passive": true,
+  "core": true,
+  "outside": true,
+  "fringe": true,
 };
 var COMPLETE_LEGEND = false;
 
@@ -3587,7 +3759,10 @@ function toggle_select(node, on) {
     }
     d3.select("#eg_next")
       .text(node.id)
-      .style("color", node.id == EGO_CURRENT ? "gray" : CAT_COLORS(node.group));
+      .style(
+        "color",
+        node.id == EGO_CURRENT ? "gray" : color_for_group(node.group)
+      );
   } else {
     node.__selected__ = false;
     SELECTED_NODES.delete(node.id);
@@ -3640,21 +3815,21 @@ function toggle_select(node, on) {
       let sel_node = lookup_node(sel_id);
       d3.select("#eg_next")
         .text(sel_id)
-        .style("color", CAT_COLORS(sel_node.group));
+        .style("color", color_for_group(sel_node.group));
     }
   }
   let sel = {};
-  for (let prp of Object.keys(HCOLORS)) {
+  for (let prp of Object.keys(HIST_COLORS)) {
     sel[prp] = new Set();
   };
   let sel_data = GRAPH.nodes.filter(d => SELECTED_NODES.has(d.id));
   for (let d of sel_data) {
-    for (let prp of Object.keys(HCOLORS)) {
+    for (let prp of Object.keys(HIST_COLORS)) {
       sel[prp].add(d[prp]);
     };
   }
   if (BARS_GROUP) {
-    for (let prp of Object.keys(HCOLORS)) {
+    for (let prp of Object.keys(HIST_COLORS)) {
       BARS_GROUP.selectAll("rect.bar." + prp)
         .classed("selected", d => sel[prp].has(d[0]));
     }
@@ -3771,7 +3946,7 @@ function copy_raw_link(link) {
 }
 
 function filter_raw_graph(graph) {
-  // Produces a graph that only contains nodes with group >= 2. Takes a raw
+  // Produces a graph that only contains nodes whose groups are tagged as core.
   // unaugmented graph as the argument.
   let result = {
     "nodes": [],
@@ -3779,9 +3954,15 @@ function filter_raw_graph(graph) {
     "dlinks": [],
     "groups": [...graph.groups]
   }
+  let allowed = new Set();
+  for (let group of result.groups) {
+    if (group.tags.includes("core")) {
+      allowed.add(group.id);
+    }
+  }
   let pass = new Set();
   for (let node of graph.nodes) {
-    if (node.group >= 2) {
+    if (allowed.has(node.group)) {
       result.nodes.push(copy_raw_node(node));
       pass.add(node.id);
     }
@@ -3823,6 +4004,16 @@ function toggle_node_filter(on) {
       bespan.innerHTML = BEST_ENERGIES[n].toExponential(3);
     }
   }
+}
+
+function toggle_node_transparency(on) {
+  NODE_TRANSPARENCY = on;
+  // Update graph nodes:
+  let node_groups = d3.selectAll(".nodes")
+  node_groups.selectAll(".symbol")
+    .attr("fill", d => color_for_group(d.group));
+  // Update legend entirely:
+  set_legend(GRAPH_TYPE);
 }
 
 COLLAPSE_HISTOGRAMS = true;
@@ -3898,25 +4089,30 @@ function update_listings(sort_by) {
             );
           }
         } else if (GRAPH_TYPE == "ego") { // sort by current ego order
-          let a_flink = lookup_dlink(a.id, EGO_CURRENT);
-          let b_flink = lookup_dlink(b.id, EGO_CURRENT);
-          let a_rlink = lookup_dlink(EGO_CURRENT, a.id);
-          let b_rlink = lookup_dlink(EGO_CURRENT, b.id);
-          let a_fval = a_flink != undefined ? a_flink.value : 0;
-          let b_fval = b_flink != undefined ? b_flink.value : 0;
-          let a_rval = a_rlink != undefined ? a_rlink.value : 0;
-          let b_rval = b_rlink != undefined ? b_rlink.value : 0;
-          return (
-            d3.descending(+(a.id == EGO_CURRENT), +(b.id == EGO_CURRENT))
-         || d3.descending(a_fval + a_rval, b_fval + b_rval)
-         || d3.descending(
-              (a_fval > 0) + (a_rval > 0),
-              (b_fval > 0) + (b_rval > 0)
-            )
-         || d3.descending(a_rval, b_rval)
-         || d3.descending(a.group, b.group)
-         || d3.ascending(a.id, b.id)
-          );
+          if (a.__ego_rank__ != undefined && b.__ego_rank__ != undefined) {
+            return d3.ascending(a.__ego_rank__.rank, b.__ego_rank__.rank);
+          } else {
+            // TODO: Simpler fallback here?
+            let a_flink = lookup_dlink(a.id, EGO_CURRENT);
+            let b_flink = lookup_dlink(b.id, EGO_CURRENT);
+            let a_rlink = lookup_dlink(EGO_CURRENT, a.id);
+            let b_rlink = lookup_dlink(EGO_CURRENT, b.id);
+            let a_fval = a_flink != undefined ? a_flink.value : 0;
+            let b_fval = b_flink != undefined ? b_flink.value : 0;
+            let a_rval = a_rlink != undefined ? a_rlink.value : 0;
+            let b_rval = b_rlink != undefined ? b_rlink.value : 0;
+            return (
+              d3.descending(+(a.id == EGO_CURRENT), +(b.id == EGO_CURRENT))
+           || d3.descending(a_fval + a_rval, b_fval + b_rval)
+           || d3.descending(
+                (a_fval > 0) + (a_rval > 0),
+                (b_fval > 0) + (b_rval > 0)
+              )
+           || d3.descending(a_rval, b_rval)
+           || d3.descending(group_index(a.group), group_index(b.group))
+           || d3.ascending(a.id, b.id)
+            );
+          }
         } else if (GRAPH_TYPE == "affinity") { // sort by outside -> inside
           if (GRAPH.__aff_outside__ != undefined) {
             let oset = new Set(GRAPH.__aff_outside__);
@@ -3948,14 +4144,14 @@ function update_listings(sort_by) {
            || d3.descending(iset.has(a.id), iset.has(b.id)) // then inside
            || d3.descending(a_oconn, b_oconn) // then connections to outside
            || d3.descending(a.interactions, b.interactions) // then total
-           || d3.descending(a.group, b.group) // then group
+           || d3.descending(group_index(a.group), group_index(b.group)) // group
            || d3.ascending(a.id, b.id) // then by ID
             );
           } else { // shouldn't happen; sort by total
             return (
               d3.descending(a.initiated + a.received, b.initiated + b.received)
            || d3.descending(a.initiated, b.initiated)
-           || d3.descending(a.group, b.group)
+           || d3.descending(group_index(a.group), group_index(b.group))
            || d3.ascending(a.id, b.id)
             );
           }
@@ -3963,19 +4159,19 @@ function update_listings(sort_by) {
           return (
             d3.descending(a.initiated + a.received, b.initiated + b.received)
          || d3.descending(a.initiated, b.initiated)
-         || d3.descending(a.group, b.group)
+         || d3.descending(group_index(a.group), group_index(b.group))
          || d3.ascending(a.id, b.id)
           );
         }
       } else if (sort_by == "group") {
         return (
-          d3.descending(a.group, b.group)
+          d3.descending(group_index(a.group), group_index(b.group))
        || d3.ascending(a.id, b.id)
         );
       } else if (sort_by == "name") {
         return (
           d3.ascending(a.id, b.id)
-       || d3.descending(a.group, b.group)
+       || d3.descending(group_index(a.group), group_index(b.group))
        || d3.descending(a.initiated + a.received, b.initiated + b.received)
         );
       } else if (sort_by == "initiated") {
@@ -3992,14 +4188,14 @@ function update_listings(sort_by) {
             d3.descending(+(a.id == EGO_CURRENT), +(b.id == EGO_CURRENT))
          || d3.descending(a_fval, b_fval)
          || d3.descending(a_rval, b_rval)
-         || d3.descending(a.group, b.group)
+         || d3.descending(group_index(a.group), group_index(b.group))
          || d3.ascending(a.id, b.id)
           );
         } else {
           return (
             d3.descending(a.initiated, b.initiated)
          || d3.descending(a.received, b.received)
-         || d3.descending(a.group, b.group)
+         || d3.descending(group_index(a.group), group_index(b.group))
          || d3.ascending(a.id, b.id)
           );
         }
@@ -4017,14 +4213,14 @@ function update_listings(sort_by) {
             d3.descending(+(a.id == EGO_CURRENT), +(b.id == EGO_CURRENT))
          || d3.descending(a_rval, b_rval)
          || d3.descending(a_fval, b_fval)
-         || d3.descending(a.group, b.group)
+         || d3.descending(group_index(a.group), group_index(b.group))
          || d3.ascending(a.id, b.id)
           );
         } else {
           return (
             d3.descending(a.received, b.received)
          || d3.descending(a.initiated, b.initiated)
-         || d3.descending(a.group, b.group)
+         || d3.descending(group_index(a.group), group_index(b.group))
          || d3.ascending(a.id, b.id)
           );
         }
@@ -4042,14 +4238,14 @@ function update_listings(sort_by) {
             d3.descending(+(a.id == EGO_CURRENT), +(b.id == EGO_CURRENT))
          || d3.descending(a_fval + a_rval, b_fval + b_rval)
          || d3.descending(a_fval, b_fval)
-         || d3.descending(a.group, b.group)
+         || d3.descending(group_index(a.group), group_index(b.group))
          || d3.ascending(a.id, b.id)
           );
         } else {
           return (
             d3.descending(a.initiated + a.received, b.initiated + b.received)
          || d3.descending(a.initiated, b.initiated)
-         || d3.descending(a.group, b.group)
+         || d3.descending(group_index(a.group), group_index(b.group))
          || d3.ascending(a.id, b.id)
           );
         }
@@ -4058,14 +4254,14 @@ function update_listings(sort_by) {
           d3.descending(a.neighbors, b.neighbors)
        || d3.descending(a.initiated, b.initiated)
        || d3.descending(a.initiated + a.received, b.initiated + b.received)
-       || d3.descending(a.group, b.group)
+       || d3.descending(group_index(a.group), group_index(b.group))
        || d3.ascending(a.id, b.id)
         );
       } else {
         console.warn("Invalid sort scheme: '" + sort_by + "'; defaulting.")
         return (
           d3.ascending(a.id, b.id)
-       || d3.descending(a.group, b.group)
+       || d3.descending(group_index(a.group), group_index(b.group))
        || d3.descending(a.initiated + a.received, b.initiated + b.received)
         );
       }
@@ -4080,13 +4276,14 @@ function update_listings(sort_by) {
     .classed("listing", true)
     .classed("selected", d => SELECTED_NODES.has(d.id));
 
-  var char_symbols = LISTINGS.append("span")
-    .classed("symbol", true)
-    .text(function (d) { return symbol_for(d); });
+  var char_identities = LISTINGS.append("span")
+    .classed("identity", true)
+    .text(function (d) { return identity_for(d); });
   var char_labels = LISTINGS.append("a")
     .text(function (d) { return d.id; })
     .attr("href", "#")
-    .style("color", function(d) { return CAT_COLORS(d.group); })
+    .style("color", function(d) { return solid_color_for_group(d.group); })
+    // Note: color here ignores transparency
     .on("click", d => toggle_select(d, !d.__selected__));
 
   // Add stats to listings:
@@ -4139,36 +4336,279 @@ function filter_listings(string) {
   });
 }
 
-function set_node_radius(val) {
+function set_node_size(val) {
   NODE_RADIUS = val;
   let node_groups = d3.selectAll(".nodes")
-  node_groups.selectAll("circle")
-    .attr("r", val)
+  node_groups.selectAll(".symbol")
+    .attr("d", d => symbol_path_data([0, 0], val, shape_for_group(d.group)))
     .style("stroke-width", Math.min(1.5, 1.5*(NODE_RADIUS/BASE_RADIUS)) + "pt");
-  node_groups.selectAll("text.symbol").style(
-    "font-size", d => font_size_for_symbol(d)
+  node_groups.selectAll("text.identity").style(
+    "font-size", d => font_size_for_identity(d)
   );
 }
 
 function setup_help(help_html) {
+  // Set up help links to show help:
+  d3.selectAll("a.help")
+    .on(
+      "click",
+      function () {
+        d3.select("#help").style("visibility", "visible");
+      }
+    );
+  d3.select("#unhelp")
+    .on(
+      "click",
+      function () {
+        d3.select("#help").style("visibility", "hidden");
+      }
+    );
+
+  // Pipe in help content
   d3.select("#help_content").html(help_html);
+
+  // Set up click handler on help itself so that if you hit the shaded area it
+  // also closes the help.
+  d3.select("#help")
+    .on(
+      "click",
+      function() {
+        if (d3.event.target.getAttribute("id") == "help") {
+          d3.select("#help").style("visibility", "hidden");
+        }
+      }
+    )
 }
 
-// Set up help links to show help:
-d3.selectAll("a.help")
-  .on(
-    "click",
-    function () {
-      d3.select("#help").style("visibility", "visible");
+// Set up pattern defs in SVG elements
+function make_pattern(pattern, type, stripe_color, background_color) {
+  // Takes an empty 10x10 d3 pattern and appends elements to make a pattern.
+  // The type must be one of:
+  //   "horizontal": horizontal stripes
+  //   "vertical": vertical stripes
+  //   "squares": squares
+  //   "circles": circles
+  let stroke_width = 1;
+  if (background_color) {
+    // TODO: White background when there's no color specified?
+    pattern
+      .append("rect")
+      .attr('width', 10)
+      .attr('height', 10)
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('fill', background_color)
+  }
+  if (type == "horizontal") {
+    pattern.append("rect")
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', 10)
+      .attr('height', stroke_width)
+      .attr('fill', stripe_color)
+  } else if (type == "vertical") {
+    pattern.append("rect")
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', stroke_width)
+      .attr('height', 10)
+      .attr('fill', stripe_color)
+  } else if (type == "fwd_diag") {
+    pattern.append("path")
+      .attr(
+          'd',
+          'M-1,3 l3,-3 '
+        + 'M-1,8 l8,-8 '
+        + 'M1,11 l9,-9 '
+        + 'M6,11 l4,-4'
+      )
+      .attr('stroke', stripe_color)
+      .attr('stroke-width', stroke_width)
+  } else if (type == "back_diag") {
+    pattern.append("path")
+      .attr(
+          'd',
+          'M11,3 l-3,-3 '
+        + 'M11,8 l-8,-8 '
+        + 'M9,11 l-9,-9 '
+        + 'M4,11 l-4,-4'
+      )
+      .attr('stroke', stripe_color)
+      .attr('stroke-width', stroke_width)
+  } else if (type == "cross") {
+    pattern.append("path")
+      .attr(
+          'd',
+          'M-1,3 l3,-3 '
+        + 'M-1,8 l8,-8 '
+        + 'M1,11 l9,-9 '
+        + 'M6,11 l4,-4'
+      )
+      .attr('stroke', stripe_color)
+      .attr('stroke-width', stroke_width)
+    pattern.append("path")
+      .attr(
+          'd',
+          'M11,3 l-3,-3 '
+        + 'M11,8 l-8,-8 '
+        + 'M9,11 l-9,-9 '
+        + 'M4,11 l-4,-4'
+      )
+      .attr('stroke', stripe_color)
+      .attr('stroke-width', stroke_width)
+  } else if (type == "waves") {
+    pattern.append("path")
+      .attr(
+          'd',
+          'M0,3 q2.5,2.5,5,0 t5,0'
+        + 'M0,8 q2.5,2.5,5,0 t5,0'
+      )
+      .attr('stroke', stripe_color)
+      .attr('stroke-width', stroke_width)
+      .attr('fill-opacity', 0)
+  } else if (type == "squares") {
+    pattern.append("rect")
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', 5)
+      .attr('height', 5)
+      .attr('stroke', stripe_color)
+      .attr('stroke-width', stroke_width)
+      .attr('fill', "none")
+  } else if (type == "circles") {
+    pattern.append("circle")
+      .attr('cx', 3.5)
+      .attr('cy', 3.5)
+      .attr('r', 3.5)
+      .attr('stroke', stripe_color)
+      .attr('stroke-width', stroke_width)
+      .attr('fill', "none")
+  } else {
+    console.log("Unknown pattern type: '" + type + "'");
+  }
+}
+
+function add_pattern_defs(svg) {
+  /*
+   * Adds pattern definitions to the given SVG.
+   * Base patterns from:
+   *   http://iros.github.io/patternfills/
+   * Background idea from:
+   *   https://stackoverflow.com/questions/37429608/can-i-have-a-svg-pattern-with-background-color
+   */
+
+  let defs = svg.append("defs")
+
+  for (let key of Object.keys(HIST_COLORS)) {
+    let color = HIST_COLORS[key];
+    let bg = HIST_BG_COLORS[key];
+    let type = HIST_SHADING[key];
+    let pattern = defs
+      .append("pattern")
+      .attr("id", key + "-pattern")
+      .attr("patternUnits", "userSpaceOnUse")
+      .attr("width", 10)
+      .attr("height", 10)
+    make_pattern(pattern, type, color, bg);
+  }
+}
+
+function symbol_path_data(where, radius, shape) {
+  let path = undefined;
+  if (shape == "star_five") {
+    let bigR = radius*1.5;
+    let smallR = radius*0.9;
+    let angle_share = (2*Math.PI)/5.0;
+    path = "M" + where[0] + "," + (where[1] - bigR)
+    for (let point of [0, 1, 2, 3, 4]) {
+      let angle = 3*Math.PI/2 - ((point+1) * angle_share);
+      let half_angle = 3*Math.PI/2 - ((point+0.5) * angle_share);
+      let p0 = [
+        where[0] + smallR * Math.cos(half_angle),
+        where[1] + smallR * Math.sin(half_angle)
+      ];
+      let p1 = [
+        where[0] + bigR * Math.cos(angle),
+        where[1] + bigR * Math.sin(angle)
+      ];
+      path += " L" + p0[0] + "," + p0[1] + " L" + p1[0] + "," + p1[1]
     }
-  );
-d3.select("#unhelp")
-  .on(
-    "click",
-    function () {
-      d3.select("#help").style("visibility", "hidden");
+
+  } else if (shape == "hexagon") {
+    let angle = 0;
+    let angle_share = Math.PI/3.0;
+    let fullR = radius*1.4;
+    path = "M" + (where[0] + fullR) + "," + where[1];
+    for (let point of [1, 2, 3, 4, 5]) {
+      angle += angle_share;
+      let p = [
+        where[0] + fullR * Math.cos(angle),
+        where[1] + fullR * Math.sin(angle)
+      ];
+      path += " L" + p[0] + "," + p[1];
     }
-  );
+    path += " Z";
+
+  } else if (shape == "double_trapezoid") {
+    let width = radius*2.4;
+    let height = radius*2;
+    path = "M" + (where[0] + width/2) + "," + (where[1] - height/2);
+    path += " L" + (where[0] + radius) + "," + where[1];
+    path += " L" + (where[0] + width/2) + "," + (where[1] + height/2);
+    path += " L" + (where[0] - width/2) + "," + (where[1] + height/2);
+    path += " L" + (where[0] - radius) + "," + where[1];
+    path += " L" + (where[0] - width/2) + "," + (where[1] - height/2);
+    path += " Z";
+
+  } else if (shape == "star_four") {
+    let width = radius*2.6;
+    let height = radius*2.6;
+    path = "M" + (where[0] + width/2) + "," + (where[1] - height/2);
+    path += " L" + (where[0] + radius) + "," + where[1];
+    path += " L" + (where[0] + width/2) + "," + (where[1] + height/2);
+    path += " L" + where[0] + "," + (where[1] + radius);
+    path += " L" + (where[0] - width/2) + "," + (where[1] + height/2);
+    path += " L" + (where[0] - radius) + "," + where[1];
+    path += " L" + (where[0] - width/2) + "," + (where[1] - height/2);
+    path += " L" + where[0] + "," + (where[1] - radius);
+    path += " Z";
+
+  } else if (shape == "square") {
+    path = "M" + (where[0] + radius) + "," + (where[1] - radius);
+    path += " L" + (where[0] + radius) + "," + (where[1] + radius);
+    path += " L" + (where[0] - radius) + "," + (where[1] + radius);
+    path += " L" + (where[0] - radius) + "," + (where[1] - radius);
+    path += " Z";
+
+  } else if (shape == "diamond") {
+    let bigR = radius*1.4;
+    path = "M" + where[0] + "," + (where[1] - bigR);
+    path += " L" + (where[0] + bigR) + "," + where[1];
+    path += " L" + where[0] + "," + (where[1] + bigR);
+    path += " L" + (where[0] - bigR) + "," + where[1];
+    path += " Z";
+
+  } else if (shape == "rounded") {
+    let bigR = radius*1.2;
+    path = "M" + where[0] + "," + (where[1] - bigR);
+    path += " q " + bigR + "," + 0 + "," + bigR + "," + bigR
+    path += " t" + (-bigR) + "," + bigR
+    path += " t" + (-bigR) + "," + (-bigR)
+    path += " t" + bigR + "," + (-bigR)
+
+  } else {
+    console.error("Unknown shape: '" + shape + "'");
+  }
+  return path;
+}
+
+// Actually attach pattern definitions to each SVG:
+d3.selectAll("svg.graph")
+  .each(
+      function () {
+        add_pattern_defs(d3.select(this))
+      }
+  )
 
 // In-line help HTML
 inline_help = undefined;

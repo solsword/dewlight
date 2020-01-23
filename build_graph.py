@@ -12,6 +12,8 @@ at least have the following columns:
 When commas are present, values will be presumed to indicate multiple
 participating nodes, and individual links from each initiator to each recipient
 will be added to the graph.
+
+TODO: Document replace + groups file formats + behavior
 """
 
 import csv
@@ -19,25 +21,66 @@ import json
 import os
 import sys
 
+USAGE = """\
+Usage:
+  build_graph.py INPUT.tsv [-g GROUPS.json] [-r REPLACE.json] [-o OUTPUT.json]\
+"""
+
 if len(sys.argv) < 2:
-  print("Usage: build_graph.py INPUT.tsv [OUTPUT.json] [REPLACE.json]")
+  print(USAGE)
   print("  You must supply at least the input file name.")
+  exit(1)
 
 INPUT_FILE = sys.argv[1]
-if len(sys.argv) > 2:
-  OUTPUT_FILE = sys.argv[2]
-elif INPUT_FILE.endswith(".tsv"):
-  OUTPUT_FILE = INPUT_FILE[:-len(".tsv")] + "-graph.json"
-else:
-  OUTPUT_FILE = INPUT_FILE + "-graph.json"
+extra_args = sys.argv[2:]
+
+if len(extra_args) % 2 != 0:
+  print(USAGE)
+  print("  You must supply an even number of extra arguments.")
+  exit(1)
+
+GROUPS_FILE = None
+REPLACE_FILE = None
+OUTPUT_FILE = None
+
+while extra_args:
+  flag = extra_args[0]
+  filename = extra_args[1]
+  extra_args = extra_args[2:]
+
+  if flag == "-g":
+    GROUPS_FILE = filename
+  elif flag == "-r":
+    REPLACE_FILE = filename
+  elif flag == "-o":
+    OUTPUT_FILENAME = filename
+  else:
+    print(USAGE)
+    print("  You may only use flags -g, -r, and/or -o.")
+    exit(1)
+
+# Look for default files by name if they weren't provided:
+if GROUPS_FILE == None:
+  groups_test = os.path.splitext(INPUT_FILE)[0] + "-groups.json"
+  if os.path.exists(groups_test):
+    GROUPS_FILE = groups_test
+
+if REPLACE_FILE == None:
+  replace_test = os.path.splitext(INPUT_FILE)[0] + "-replace.json"
+  if os.path.exists(replace_test):
+    REPLACE_FILE = replace_test
+
+if OUTPUT_FILE == None:
+  OUTPUT_FILE = os.path.splitext(INPUT_FILE)[0] + "-graph.json"
 
 # Input character -> replace with
-if len(sys.argv) > 3:
+if REPLACE_FILE != None:
   try:
-    with open(sys.argv[3], 'r') as fin:
+    with open(REPLACE_FILE, 'r') as fin:
       REPLACE = json.load(fin)
   except:
-    print("Warning could not read replacement file.")
+    print("Warning: could not read replacement file.")
+    REPLACE = {}
 else:
   REPLACE = {}
 
@@ -57,7 +100,7 @@ dlink_ids = {}
 soliloquists = set()
 all_characters = set()
 
-with open(INPUT_FILE, 'r') as fin:
+with open(INPUT_FILE, 'r', newline='') as fin:
   reader = csv.DictReader(fin, dialect=DIALECT)
 
   # First accumulate records by splitting multi-recipient/multi-initiator rows:
@@ -168,67 +211,96 @@ by_involvement = sorted(
 
 avg_init = sum(x["initiated"] for x in by_involvement)/len(by_involvement)
 
-group_by = "initiated"
+# Groups
+if GROUPS_FILE != None:
+  # Determine groups from file contents:
+  group_data = None
+  try:
+    with open(GROUPS_FILE, 'r') as fin:
+      group_data = json.load(fin)
+  except:
+    print("Warning: could not read groups file.")
+    raise
 
-most = by_involvement[-1][group_by]
-main_thr = most/2
-major_thr = most/3
-minor_thr = avg_init
-if minor_thr >= major_thr/2:
-  minor_thr = major_thr/2
+  if group_data == None:
+    for node in GRAPH["nodes"]:
+      node["group"] = "None"
 
-print(
-  "Main nodes must have {} more than {:.1f} connections.".format(
-    group_by,
-    most/2
+    GRAPH["groups"] = [ { "id": "None", "tags": [] } ]
+  else:
+    for id in group_data["assignments"]:
+      group = group_data["assignments"][id]
+      for node in GRAPH["nodes"]:
+        if node["id"] == id:
+          node["group"] = group
+    GRAPH["groups"] = []
+    for group_id in group_data["tags"]:
+      GRAPH["groups"].append(
+        { "id": group_id, "tags": group_data["tags"][group_id] }
+      )
+else:
+  # Determine groups from node stats:
+  group_by = "initiated"
+
+  most = by_involvement[-1][group_by]
+  main_thr = most/2
+  major_thr = most/3
+  minor_thr = avg_init
+  if minor_thr >= major_thr/2:
+    minor_thr = major_thr/2
+
+  print(
+    "Main nodes must have {} more than {:.1f} connections.".format(
+      group_by,
+      most/2
+    )
   )
-)
-print(
-  "Major nodes must have {} more than {:.1f} connections.".format(
-    group_by,
-    most*(1/3)
+  print(
+    "Major nodes must have {} more than {:.1f} connections.".format(
+      group_by,
+      most*(1/3)
+    )
   )
-)
-print(
-  "Minor nodes must have {} more than {:.1f} connections.".format(
-    group_by,
-    minor_thr
+  print(
+    "Minor nodes must have {} more than {:.1f} connections.".format(
+      group_by,
+      minor_thr
+    )
   )
-)
-print(
-  "Marginal nodes must have {} more than {:.1f} connections.".format(
-    group_by,
-    0
+  print(
+    "Marginal nodes must have {} more than {:.1f} connections.".format(
+      group_by,
+      0
+    )
   )
-)
-print("Nodes who never {} a connection are Passive.".format(group_by))
-main = [node for node in by_involvement if node[group_by] > main_thr]
-major = [node for node in by_involvement if node[group_by] > major_thr]
-minor = [node for node in by_involvement if node[group_by] > minor_thr]
-passive = [node for node in by_involvement if node[group_by] == 0]
+  print("Nodes who never {} a connection are Passive.".format(group_by))
+  main = [node for node in by_involvement if node[group_by] > main_thr]
+  major = [node for node in by_involvement if node[group_by] > major_thr]
+  minor = [node for node in by_involvement if node[group_by] > minor_thr]
+  passive = [node for node in by_involvement if node[group_by] == 0]
 
-for node in GRAPH["nodes"]:
-  node["group"] = 1
+  for node in GRAPH["nodes"]:
+    node["group"] = "Marginal"
 
-for node in passive:
-  node["group"] = 0
+  for node in passive:
+    node["group"] = "Passive"
 
-for node in minor:
-  node["group"] = 2
+  for node in minor:
+    node["group"] = "Minor"
 
-for node in major:
-  node["group"] = 3
+  for node in major:
+    node["group"] = "Major"
 
-for node in main:
-  node["group"] = 4
+  for node in main:
+    node["group"] = "Main"
 
-GRAPH["groups"] = [
-  "Passive",
-  "Marginal",
-  "Minor",
-  "Major",
-  "Main"
-]
+  GRAPH["groups"] = [
+    { "id": "Passive", "tags": ["fringe"] },
+    { "id": "Marginal", "tags": ["outside"] },
+    { "id": "Minor", "tags": [ "core" ] },
+    { "id": "Major", "tags": [ "core" ] },
+    { "id": "Main", "tags": [ "core" ] },
+  ]
 
 initiators = [node for node in GRAPH["nodes"] if node["initiated"] > 0]
 recipients = [node for node in GRAPH["nodes"] if node["received"] > 0]

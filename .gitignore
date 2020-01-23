@@ -1,4 +1,6 @@
 data/*.tsv
+data/*-groups.json
+data/*-help.md
 data/*-graph.json
 out/*-bundle.html
 lists/

@@ -31,9 +31,9 @@ At the top left, the controls area shows [global controls](#help:controls) and
 graph-specific controls (described in the help sections for each type of
 graph).
 
-At the top right, there is a legend that shows the colors used for the current
-view. For most views, color is based on group, which is discussed in the
-[colors](#help:colors) section.
+At the top right, there is a legend that shows the styles used for the current
+view. For most views, style is based on group, which is discussed in the
+[legend](#help:legend) section.
 
 On the bottom left, the current view is displayed. In all views, you can click
 on nodes (or bars in the [histograms](#help:histograms) view) to select them.
@@ -48,19 +48,23 @@ the number of initiated, received, and total connections for that node.
 
 ## Controls {#help:controls}
 
- The global controls are:
+The global controls are:
 
 - The "show" drop-down menu controls which view is displayed.
-- The "filter nodes" check box controls whether all nodes are shown, or whether
-  only important nodes are shown. It applies across all views, and also filters
-  edges (only edges among included nodes are counted).
-- the "node radius" slider which controls how large each node is in the graph
+- The "core groups only" check box controls whether all nodes are shown, or
+  whether only nodes from core groups are shown. It applies across all views,
+  and also filters edges (only edges among included nodes are counted).
+- the "marker size" slider which controls how large each node is in the graph
   views.
 - The "clear selection" button allows you to deselect all currently selected
   nodes.
 - The "mark" menu controls which nodes are marked with a symbol in the current
   view and the [listing](#help:listing). The symbols can help you see which
   node is which without hovering over it, but can also be distracting.
+- The "transparency" check box controls whether node symbols are displayed
+  using solid or transparent colors. Transparency helps the labels stand out a
+  bit more, especially if you are going to display a visualization in
+  grayscale.
 
 
 ## Relationships {#help:relationships}
@@ -105,7 +109,7 @@ used:
     - For subsequent steps, pick the node that has the most interaction weight
       with nodes that have already been placed. Ties are broken by total
       interaction weight across all nodes, then by number of neighbors, then by
-      group (more-interacting groups first; see [colors](#help:colors)), and
+      group (more-interacting groups first; see [legend](#help:legend)), and
       finally by ascending alphabetical order of node IDs.
 2. Next, place that node on the graph:
     - For the first step, place it at the origin (0, 0).
@@ -126,7 +130,7 @@ This algorithm normally results in a roughly hexagonal group of nodes, even
 when connections aren't thick, because it breaks ties towards the origin. The
 default listing sort order for this view shows the order in which nodes were
 added, which can help understand the layout, but in general, and especially for
-the first several characters placed, proximity in the layout indicates relative
+the first several nodes placed, proximity in the layout indicates relative
 strength of connection (as things get crowded the grid constraints make this
 less strictly true).
 
@@ -154,7 +158,7 @@ In addition to these two main forces, there are several more forces to help
 arrange the nodes:
 
 - A gathering force pulls all nodes towards the origin. This ensures that
-  disconnected nodes to not drift away from the main part of the graph. This
+  disconnected nodes do not drift away from the main part of the graph. This
   force is fairly weak, so it does not introduce very much distortion.
 - A "bubble" force that forces nodes in certain categories out of the center
   of the graph. Nodes with less than 10 total link weight (incoming +
@@ -179,7 +183,6 @@ The "loose" layout is an intermediate between the rigid grid of the "strict"
 layout and the more circular appearance of the "relaxed" layout (which is due
 to the bubble forces).
 
-
 ## Ego Network {#help:ego_network}
 
 This view shows detailed information about all of the connections at a single
@@ -189,7 +192,7 @@ connected to the focus node are arrayed in a circle around the focus node,
 ordered by their strength of connection with the focus node starting from 0
 degrees on the right and proceeding clockwise. Strength of connection also
 determines distance between the focus node and related nodes: the node that has
-the strongest relationship is placed at 1/2 the base radius, and nodes with
+the strongest relationship is placed at 1/2 the full radius, and nodes with
 weaker relationships are placed proportionally further out.
 
 Unlike the other views, edges in this view are directional: each edge comes
@@ -240,7 +243,7 @@ edges in both directions between the inner node and each outer node.
 
 In some cases this causes overlap issues, but the plots are most informative
 when you can see distinctions in how certain nodes are positioned within the
-plot. Decreasing the node radius using the "node radius" slider may help in
+plot. Decreasing the node size using the "marker size" slider may help in
 cases where there is a lot of overlap.
 
 The controls for this view are:
@@ -278,14 +281,13 @@ then alphabetically by ID). The position of the inside nodes is determined by
 which outside nodes they are most strongly connected to, however, and the
 purpose of the affinity plot is to be able to compare these connection
 strengths. If there are more than three outside nodes, position on the interior
-is ambiguous: exactly which characters on one edge of the circle pulled the
-node to that side should be inspected by looking at specific edges. So if two
-inside nodes are close to each other, that doesn't necessarily mean that they
-have exactly the same pattern of relationships with the exterior nodes.
-However, if two nodes are placed differently, it *does* mean that they have
-different relationship patterns, and if there are only two or three outside
-nodes, then similar interior placement does imply similar relationships
-patterns.
+is ambiguous: exactly which node on one edge of the circle pulled the node to
+that side should be inspected by looking at specific edges. So if two inside
+nodes are close to each other, that doesn't necessarily mean that they have
+exactly the same pattern of relationships with the exterior nodes. However, if
+two nodes are placed differently, it *does* mean that they have different
+relationship patterns, and if there are only two or three outside nodes, then
+similar interior placement does imply similar relationships patterns.
 
 ## Histograms {#help:histograms}
 
@@ -344,13 +346,13 @@ deselects all of them. So if you want to know which nodes have a total outgoing
 weight of exactly 5, you can select the "initiated" histogram, and click on the
 bar above the number 5 on the x-axis.
 
-## Colors {#help:colors}
+## Legend {#help:legend}
 
-In the top-right of the window, there is a "Colors" panel which displays a
+In the top-right of the window, there is a "Legend" panel which displays a
 legend for the current graph. In the [relationships](#help:relationships), [ego
 network](#help:ego_network), and [affinity plot](#help:affinity_plot) views,
-this displays one color for each node group, along with the name of that group.
-In the [histogram](#help:histogram) view, it displays the different colors used
+this displays one style for each node group, along with the name of that group.
+In the [histogram](#help:histogram) view, it displays the different styles used
 for each different value that can be used to plot a histogram, which is useful
 when comparing histograms to distinguish which is which.
 
@@ -398,12 +400,12 @@ The controls for the listing area are:
       in the current ego network are sorted to the bottom according to their
       group and then alphabetically by ID.
     * For the [affinity plot](#help:affinity_plot) view, it puts the outside
-      characters first, then the inside characters, and then the rest of the
-      characters, and in each group, it sorts by total weight of edges that
-      connect just to the outside nodes (so for outside nodes, it sorts on
-      connections among them, and for inside and other nodes, it sorts on their
-      connection to the current outside node set). Ties on connections to the
-      outside nodes are broken by total interactions, group, and then ID.
+      nodes first, then the inside nodes, and then the rest of the nodes, and
+      in each group, it sorts by total weight of edges that connect just to the
+      outside nodes (so for outside nodes, it sorts on connections among them,
+      and for inside and other nodes, it sorts on their connection to the
+      current outside node set). Ties on connections to the outside nodes are
+      broken by total interactions, group, and then ID.
     * For the [histograms](#help:histograms) view the graph is sorted by the
       property used in the currently selected primary histogram (so outgoing
       weight, incoming weight, combined weight, or number of neighbors). These

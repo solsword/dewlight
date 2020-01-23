@@ -23,13 +23,16 @@
 [X] Affinity graphs
 [X] don't show dlinks in affinity graphs (now shows labeled links)
 [~] writeup of how the graph layout works
+[X] custom help file for Cleves
+[X] custom categories
+[X] Why is main character not symbol "A"?
 
+[ ] More UI for inside vs. outside nodes?
+[ ] add switch for building hive layout based on total interactions vs.
+    interactions with placed nodes.
 [ ] node radius slider positioning for narrow screens
-[ ] custom help file for Cleves
 [ ] toggle in listing to allow filtering by visible nodes
 [ ] group assignment tool in visualizer!
-[ ] custom categories
-[ ] Why is main character not symbol "A"?
 [ ] Drag to select
 [ ] Make labels continuous with data somehow?
 [ ] More flexible neighbor limits in ego networks?
@@ -46,5 +49,6 @@
 [ ] ego network outer edges
 [ ] side-by-side
 [ ] extra relationships
+    [ ] history/timeline view
     [ ] visualize subjects - two copies of each node?
     [ ] locations? - bipartite?
