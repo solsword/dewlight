@@ -404,18 +404,19 @@ The character groupings are as follows:
 - “Main” characters are the princess, the prince, and Nemours. Each of them
   initiated at least 1/2 as many total exchanges as the princess, who is the
   focal character of the novel, and no other characters reached that threshold.
-- “Major” characters are the King (Henry II), and the duchess (TODO), who each
+- “Major” characters are the King (Henry II), and the Dauphine, who each
   initiated at least 1/3 as many exchanges as the princess.
 - “Minor” characters are Vidame, Catherine de Médicis, Mme. de Chartres, Mme.
   de Martigues, and Sancerre, who each initiated more exchanges than the
   average across all characters (which was 8.3).
-- “Special” characters are the “impersonal character,” which indicates the
-  voice of the narrator (TODO), and “La cour,” or “the court,” which records
-  instances where the court as a group speaks or is spoken to. They each have
-  unique patterns of interaction and are interesting in their own right.
+- “Special” characters are the “impersonal character,” (either constructions in
+  the passive voice, or the French impersonal pronoun “on”), and “La cour,” or
+  “the court,” which records instances where the court as a group speaks or is
+  spoken to. They each have unique patterns of interaction and are interesting
+  in their own right.
 - “Marginal” characters are all other characters who do not qualify as “Minor”
   but who participated in at least two exchanges.
-- “Nonce” characters are characters who participated in just a single exchange.
+- “Scarce” characters are characters who participated in just a single exchange.
 
 ## Listing {#help:listing}
 

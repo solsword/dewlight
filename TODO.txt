@@ -50,5 +50,12 @@
 [ ] side-by-side
 [ ] extra relationships
     [ ] history/timeline view
+        [ ] vertical scrolling per-character timeline listing all quotes and
+            who the recipient(s) were
     [ ] visualize subjects - two copies of each node?
     [ ] locations? - bipartite?
+    [ ] bipartite separation using force on relationships graph
+[ ] Flexible tool for constraining based on characters and/or pages?
+[ ] bring quotes themselves into visualizer?
+[ ] tool for saving and comparing snapshots
+[ ] make github.io page with cleves demo
