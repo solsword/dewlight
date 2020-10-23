@@ -138,8 +138,8 @@ h1 {
 .swatch {
   display: inline-block;
   margin-right: 4pt;
-  width: 12pt;
-  height: 12pt;
+  width: 20px;
+  height: 20px;
 }
 
 #sidebar {
@@ -718,7 +718,28 @@ var AFFINITY = d3.select("#affinity");
 var AFFINITY_CONTROLS = d3.select("#af_controls");
 
 // Category styles
-var CAT_COLOR_SCALE = d3.scaleOrdinal(d3.schemeCategory10);
+//var CAT_COLOR_VALUES = d3.schemeCategory10;
+/* Grayscale equivalents
+var CAT_COLOR_VALUES = [
+  "#cccccc",
+  "#b4b4b4",
+  "#949494",
+  "#949494",
+  "#686868",
+  "#444444",
+];
+*/
+var CAT_COLOR_VALUES = [
+  "#e6cb11",
+  "#31ce52",
+  "#8e8fd3",
+  "#17a3be",
+  "#0c7571",
+  "#09467e",
+];
+
+var CAT_COLOR_SCALE = d3.scaleOrdinal(CAT_COLOR_VALUES)
+  .domain(CAT_COLOR_VALUES.map((x,i)=>i));
 
 var NODE_TRANSPARENCY = false;
 function CAT_COLORS(n) {
@@ -734,10 +755,18 @@ function CAT_SHAPES(n) {
   let shapes = [
     "diamond",
     "rounded",
+    "star_five",
+    "shield",
+    "square",
+    "octagon",
+      /*
+    "diamond",
+    "rounded",
     "square",
     "star_four",
     "hexagon",
     "star_five"
+      */
   ];
   n %= shapes.length;
   if (n < 0) { n += shapes.length; }
@@ -746,16 +775,16 @@ function CAT_SHAPES(n) {
 
 // Histogram styles
 var HIST_COLORS = {
-  "initiated": "#ffc8e5",
+  "initiated": "#ffd8f0",
   "received": "#e5c8ff",
-  "interactions": "#e699e6",
+  "interactions": "#df60df",
   "neighbors": "#c8e5ff"
 };
 
 var HIST_BG_COLORS = {
-  "initiated": "#f40083",
+  "initiated": "#f455b3",
   "received": "#8300f4",
-  "interactions": "#970097",
+  "interactions": "#640064",
   "neighbors": "#0085f4"
 };
 
@@ -1178,9 +1207,11 @@ function set_legend(type) {
       .classed("symbol", true)
       .attr(
         "d",
-        d => symbol_path_data([8, 8], 6, shape_for_group(d.id))
+        d => symbol_path_data([10, 10], 6, shape_for_group(d.id))
       )
       .attr("fill", d => color_for_group(d.id))
+      .attr("stroke", "white")
+      .style("stroke-width", Math.min(1.5, 1.5*(6/BASE_RADIUS)) + "pt")
 
     legend_entry.append("span").text(d => d.id);
   } else if (type == "histogram") {
@@ -1198,8 +1229,8 @@ function set_legend(type) {
     legend_symbol.append("rect")
       .attr("x", 0)
       .attr("y", 0)
-      .attr("width", 24)
-      .attr("height", 24)
+      .attr("width", 20)
+      .attr("height", 20)
       .attr("fill", d => "url(#" + d + "-pattern)")
 
     legend_entry.append("span").text(d => d);
@@ -3236,6 +3267,7 @@ function set_affinity(nodes, links) {
       d => symbol_path_data([0, 0], NODE_RADIUS, shape_for_group(d.group))
     )
     .attr("fill", d => color_for_group(d.group))
+    .attr("stroke", "white")
     .style("stroke-width", Math.min(1.5, 1.5*(NODE_RADIUS/BASE_RADIUS)) + "pt")
     .style("cursor", "crosshair")
     .on("mouseover", hoverstarted)
@@ -4574,10 +4606,25 @@ function symbol_path_data(where, radius, shape) {
     path += " Z";
 
   } else if (shape == "square") {
-    path = "M" + (where[0] + radius) + "," + (where[1] - radius);
-    path += " L" + (where[0] + radius) + "," + (where[1] + radius);
-    path += " L" + (where[0] - radius) + "," + (where[1] + radius);
-    path += " L" + (where[0] - radius) + "," + (where[1] - radius);
+    let bigR = radius*1.2;
+    path = "M" + (where[0] + bigR) + "," + (where[1] - bigR);
+    path += " L" + (where[0] + bigR) + "," + (where[1] + bigR);
+    path += " L" + (where[0] - bigR) + "," + (where[1] + bigR);
+    path += " L" + (where[0] - bigR) + "," + (where[1] - bigR);
+    path += " Z";
+
+  } else if (shape == "octagon") {
+    let bigR = radius*1.2;
+    let corner = radius*0.5;
+    let side = 2*(bigR - corner);
+    path = "M" + (where[0] + bigR - corner) + "," + (where[1] - bigR);
+    path += " l" + corner + "," + corner;
+    path += " l" + 0 + "," + side;
+    path += " l" + (-corner) + "," + corner;
+    path += " l" + (-side) + "," + 0;
+    path += " l" + (-corner) + "," + (-corner);
+    path += " l" + 0 + "," + (-side);
+    path += " l" + corner + "," + (-corner);
     path += " Z";
 
   } else if (shape == "diamond") {
@@ -4591,10 +4638,89 @@ function symbol_path_data(where, radius, shape) {
   } else if (shape == "rounded") {
     let bigR = radius*1.2;
     path = "M" + where[0] + "," + (where[1] - bigR);
-    path += " q " + bigR + "," + 0 + "," + bigR + "," + bigR
-    path += " t" + (-bigR) + "," + bigR
-    path += " t" + (-bigR) + "," + (-bigR)
-    path += " t" + bigR + "," + (-bigR)
+    path += " q " + bigR + "," + 0 + "," + bigR + "," + bigR;
+    path += " t" + (-bigR) + "," + bigR;
+    path += " t" + (-bigR) + "," + (-bigR);
+    path += " t" + bigR + "," + (-bigR);
+
+  } else if (shape == "shield") {
+    let bigR = radius*1.2;
+    path = "M" + (where[0] - bigR) + "," + (where[1] - bigR);
+    path += " l" + (2*bigR) + "," + 0;
+    path += " l" + 0 + "," + bigR;
+    path += " q" + 0 + "," + bigR + "," + (-bigR) + "," + bigR;
+    path += " t" + (-bigR) + "," + (-bigR);
+    path += "Z";
+
+  } else if (shape == "crown_one") {
+    let bigR = radius*1.2;
+    let cWidth = radius*1.4;
+    let sWidth = radius*0.5;
+    let cPart = cWidth/2 - sWidth/2;
+    let shoulder = bigR - cWidth/2;
+    path = "M" + (where[0] - cWidth/2) + "," + (where[1] - bigR);
+    path += "l" + cPart + "," + 0;
+    path += " q" + 0 + "," + (-sWidth) + "," + (sWidth/2) + "," + (-sWidth);
+    path += " t" + (sWidth/2) + "," + sWidth;
+    path += "l" + cPart + "," + 0;
+    path += " q" + shoulder + "," + 0 + "," + shoulder + "," + bigR;
+    path += " t" + (-bigR) + "," + bigR;
+    path += " t" + (-bigR) + "," + (-bigR);
+    path += " t" + shoulder + "," + (-bigR);
+
+  } else if (shape == "crown_two") {
+    let bigR = radius*1.2;
+    let cWidth = radius*1.5;
+    let sWidth = radius*0.5;
+    let cPart = cWidth/2 - sWidth;
+    let shoulder = bigR - cWidth/2;
+    path = "M" + (where[0] - cWidth/2) + "," + (where[1] - bigR);
+    path += "l" + cPart + "," + 0;
+    path += " q" + 0 + "," + (-sWidth) + "," + (sWidth/2) + "," + (-sWidth);
+    path += " t" + (sWidth/2) + "," + sWidth;
+    path += " q" + 0 + "," + (-sWidth) + "," + (sWidth/2) + "," + (-sWidth);
+    path += " t" + (sWidth/2) + "," + sWidth;
+    path += "l" + cPart + "," + 0;
+    path += " q" + shoulder + "," + 0 + "," + shoulder + "," + bigR;
+    path += " t" + (-bigR) + "," + bigR;
+    path += " t" + (-bigR) + "," + (-bigR);
+    path += " t" + shoulder + "," + (-bigR);
+
+  } else if (shape == "crown_three") {
+    let bigR = radius*1.2;
+    let cWidth = radius*1.4;
+    let sWidth = radius*0.5;
+    let cPart = cWidth/2 - (1.5*sWidth);
+    let shoulder = bigR - cWidth/2;
+    path = "M" + (where[0] - cWidth/2) + "," + (where[1] - bigR);
+    path += "l" + cPart + "," + 0;
+    path += " q" + 0 + "," + (-sWidth) + "," + (sWidth/2) + "," + (-sWidth);
+    path += " t" + (sWidth/2) + "," + sWidth;
+    path += " q" + 0 + "," + (-sWidth) + "," + (sWidth/2) + "," + (-sWidth);
+    path += " t" + (sWidth/2) + "," + sWidth;
+    path += " q" + 0 + "," + (-sWidth) + "," + (sWidth/2) + "," + (-sWidth);
+    path += " t" + (sWidth/2) + "," + sWidth;
+    path += "l" + cPart + "," + 0;
+    path += " q" + shoulder + "," + 0 + "," + shoulder + "," + bigR;
+    path += " t" + (-bigR) + "," + bigR;
+    path += " t" + (-bigR) + "," + (-bigR);
+    path += " t" + shoulder + "," + (-bigR);
+
+  } else if (shape == "crown_special") {
+    let bigR = radius*1.2;
+    let cWidth = radius*1.4;
+    let sWidth = radius*0.2;
+    let cPart = cWidth/2 - sWidth/2;
+    let shoulder = bigR - cWidth/2;
+    path = "M" + (where[0] - cWidth/2) + "," + (where[1] - bigR);
+    path += "l" + cPart + "," + 0;
+    path += " q" + 0 + "," + sWidth + "," + (sWidth/2) + "," + sWidth;
+    path += " t" + (sWidth/2) + "," + (-sWidth);
+    path += "l" + cPart + "," + 0;
+    path += " q" + shoulder + "," + 0 + "," + shoulder + "," + bigR;
+    path += " t" + (-bigR) + "," + bigR;
+    path += " t" + (-bigR) + "," + (-bigR);
+    path += " t" + shoulder + "," + (-bigR);
 
   } else {
     console.error("Unknown shape: '" + shape + "'");
