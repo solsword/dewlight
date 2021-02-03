@@ -10,7 +10,7 @@
     <style>
 
 body {
-  font-size: 14pt;
+  font-size: 18pt;
   line-height: 20pt;
   margin: 0pt;
   padding: 0pt;
@@ -196,7 +196,8 @@ a:link,a:visited {
 text.identity {
   text-anchor: middle;
   dominant-baseline: central;
-  font-size: 19px;
+  /*font-size: 19px;*/
+  font-size: 25px;
   cursor: crosshair;
   fill: black;
   stroke: white;
@@ -233,7 +234,7 @@ text.identity {
 .diredge-label {
   text-anchor: middle;
   dominant-baseline: central;
-  font-size: 19px;
+  font-size: 25px;
   fill: black;
   stroke: white;
   stroke-width: 1.5pt;
@@ -243,7 +244,7 @@ text.identity {
 .edge-label {
   text-anchor: middle;
   dominant-baseline: central;
-  font-size: 19px;
+  font-size: 25px;
   fill: black;
   stroke: white;
   stroke-width: 1.5pt;
@@ -284,7 +285,7 @@ rect.bar.selected {
 
 text {
   font-family: serif;
-  font-size: 14pt;
+  font-size: 18pt;
 }
 
 #opt_spinner {
@@ -405,7 +406,7 @@ a.help.wide {
          min="4"
          max="20"
          step="2"
-         value="12"
+         value="14"
          id="size_slider"
          onchange="set_node_size(this.value)"
          >
@@ -699,10 +700,15 @@ const COOLOFF_TICKS = 100;
 
 // Radius of nodes, adjusted by slider
 const BASE_RADIUS = 10;
-var NODE_RADIUS = 12;
+var NODE_RADIUS = 18;
+
+// Font size variables
+var BAR_TICKS_FONT_SIZE = 16;
+var BAR_FONT_SIZE = 14;
+var EDGE_LABEL_FONT_SIZE = 16;
 
 // Font size for identity
-const IDENTITY_FONT_BASE_SIZE = 16;
+const IDENTITY_FONT_BASE_SIZE = 18;
 
 // Global handles for graphs:
 var FDG = d3.select("#force_directed");
@@ -1357,8 +1363,11 @@ link_forces = d3.forceLink()
   .strength(link_strength);
 
 separation_force = d3.forceManyBody()
-  .strength(function () { return -360; })
+  .strength(-350)
   .distanceMax(50);
+
+collision_force = d3.forceCollide()
+  .radius(function(d) { return 1.2*NODE_RADIUS; })
 
 bubble_force = forceBubble()
   .target([LARGE_GRAPH_WIDTH/2, LARGE_GRAPH_HEIGHT/2])
@@ -1373,6 +1382,7 @@ gather_force = forceBubble()
 var SIMULATION = d3.forceSimulation()
   .force("link", link_forces)
   .force("charge", separation_force)
+  .force("collision", collision_force)
   .force("center", d3.forceCenter(LARGE_GRAPH_WIDTH/2, LARGE_GRAPH_HEIGHT/2))
   .force("bubble", bubble_force)
   .force("gather", gather_force);
@@ -2397,7 +2407,10 @@ function set_bars(data, above, below) {
       .classed("tick", true)
       .text(d => d[0])
       .style("text-anchor", "middle")
-      .style("font-size", (d, i) => font_size_for_digits(d[0], 12))
+      .style(
+        "font-size",
+        (d, i) => font_size_for_digits(d[0], BAR_TICKS_FONT_SIZE)
+      )
       .attr('x', (d, i) => 15 + i*bar_width + bar_width/2);
 
   if (combo) {
@@ -2416,7 +2429,7 @@ function set_bars(data, above, below) {
       .classed("label", true)
       .classed("above", true)
       .style("text-anchor", "middle")
-      .style("font-size", (d, i) => font_size_for_digits(d[0], 10))
+      .style("font-size", (d, i) => font_size_for_digits(d[0], BAR_FONT_SIZE))
       .attr('x', (d, i) => 15 + i*bar_width + bar_width/2);
 
   let lp = 4;
@@ -2504,7 +2517,7 @@ function set_bars(data, above, below) {
         .text(d => d[1][1])
         .style("visibility", d => d[1][1] > 0 ? "visible" : "hidden")
         .style("text-anchor", "middle")
-        .style("font-size", (d, i) => font_size_for_digits(d[0], 10))
+        .style("font-size", (d, i) => font_size_for_digits(d[0], BAR_FONT_SIZE))
         .attr('x', (d, i) => 15 + i*bar_width + bar_width/2)
         .attr('fill', d => bar_height(d[1][1]) > ll ? 'white': 'black')
         .attr(
@@ -2990,7 +3003,10 @@ function set_ego(nodes, dlinks) {
     .classed("diredge-label", true)
     .attr("x", d => dir_edge_points(d, x => x.__ego_node__).xe)
     .attr("y", d => dir_edge_points(d, x => x.__ego_node__).ye)
-    .style("font-size", d => font_size_for_digits(d.value, 15, 1.0))
+    .style(
+      "font-size",
+      d => font_size_for_digits(d.value, EDGE_LABEL_FONT_SIZE, 1.0)
+    )
     .text(d => d.value);
 
   // node labels
@@ -3302,7 +3318,10 @@ function set_affinity(nodes, links) {
     .classed("edge-label", true)
     .attr("x", d => edge_label_pos(d, x => x.__aff_node__)[0])
     .attr("y", d => edge_label_pos(d, x => x.__aff_node__)[1])
-    .style("font-size", d => font_size_for_digits(d.value, 15, 1.0))
+    .style(
+      "font-size",
+      d => font_size_for_digits(d.value, EDGE_LABEL_FONT_SIZE, 1.0)
+    )
     .text(d => d.value);
 
   // node labels
