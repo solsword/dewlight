@@ -1,12 +1,14 @@
 # Dewlight
 
 This project consist of open-source (see `LICENSE.txt`) code in
-Javascript and Python for a network visualizer. The Python code can
-transform a tab-separated-value (TSV) input file into the files necessary
-to visualize the data, and it can also produce a bundled HTML file that
-contains an interactive visualization for that data. The Javascript code
-is included in that bundle and manages the visualization, using the D3
-visualization library as its primary engine.
+Javascript and Python for a network visualizer based on an interactions
+list. The input is a tab-separated-value (TSV) file that lists
+interactions with an "initiator" and one or more "recipients" for each
+interaction. The Python code can transform this input into a JSON file
+necessary to visualize the data, and it can also produce a bundled HTML
+file that contains an interactive visualization for that data. The
+Javascript code is included in that bundle and manages the visualization,
+using the D3 visualization library as its primary engine.
 
 This project was initially undertaken to visualize data on conversational
 exchanges from the 17th century French novel "La Princesse de Clèves" by
